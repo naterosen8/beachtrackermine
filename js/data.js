@@ -357,13 +357,16 @@ async function sendReport({ beachId, crowd, parking, note, slot }) {
   } catch {
     res = null;
   }
-  if (res && res.ok) return { shared: true };
+  if (res && res.ok) {
+    const json = await res.json().catch(() => ({}));
+    return { shared: true, id: json.report && json.report.id };
+  }
   if (res && (res.status === 400 || res.status === 429)) throw new Error((await res.json()).error);
 
   // No shared store (local preview, or not set up yet): keep it on this device.
   const all = readLocal();
   const entry = (all[beachId] = all[beachId] || { recent: [], history: {} });
-  const report = { time: Date.now(), crowd };
+  const report = { id: localId(), time: Date.now(), crowd };
   if (parking) report.parking = parking;
   if (note) report.note = note.slice(0, 140);
   entry.recent = [report, ...entry.recent].slice(0, 50);
@@ -371,7 +374,36 @@ async function sendReport({ beachId, crowd, parking, note, slot }) {
   s.sum += crowd;
   s.count += 1;
   writeLocal(all);
-  return { shared: false };
+  return { shared: false, id: report.id };
+}
+
+const localId = () => Array.from(crypto.getRandomValues(new Uint8Array(5)), (b) => b.toString(16).padStart(2, "0")).join("");
+
+// Votes on a report: { up, down } after voting, or throws with a message to show. Without the
+// shared store, votes are kept with the reports on this device.
+async function sendVote({ beachId, reportId, vote }) {
+  let res;
+  try {
+    res = await fetch("api/votes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ beachId, reportId, vote }),
+    });
+  } catch {
+    res = null;
+  }
+  if (res && res.ok) return res.json();
+  // The vote API's own refusals (already voted, your own report, expired...) come as JSON.
+  const refusal = res && res.status !== 503 && (res.headers.get("content-type") || "").includes("json")
+    ? await res.json().catch(() => null)
+    : null;
+  if (refusal && refusal.error) throw new Error(refusal.error);
+  const all = readLocal();
+  const report = ((all[beachId] && all[beachId].recent) || []).find((r) => r.id === reportId);
+  if (!report) throw new Error("Couldn't vote. Try again in a minute.");
+  report[vote] = (report[vote] || 0) + 1;
+  writeLocal(all);
+  return { up: report.up || 0, down: report.down || 0 };
 }
 
 if (typeof module !== "undefined") {

@@ -9,6 +9,8 @@ const demo = params.has("demo");
 const FAVORITES_KEY = "beachcheck.favorites";
 const PLACE_KEY = "beachcheck.place";
 const ALERTS_KEY = "beachcheck.alerts"; // { beachId: { name, level, parking, push } }
+const VOTES_KEY = "beachcheck.votes"; // { reportId: "up"|"down" } votes from this device
+const MINE_KEY = "beachcheck.mine"; // ids of reports sent from this device
 const ALERTED_KEY = "beachcheck.alerted"; // { beachId: time of the last alert this page showed }
 const BUSY = 3.5; // the forecast counts as "busy" from here
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -26,6 +28,9 @@ const state = {
   updated: null, // when live reports were last fetched
   favorites: new Set(load_(FAVORITES_KEY) || []),
   alerts: load_(ALERTS_KEY) || {},
+  myVotes: load_(VOTES_KEY) || {},
+  mine: new Set(load_(MINE_KEY) || []),
+  openLists: new Map(), // beachId -> whether its report list is open, once someone toggles it
 };
 let focusId = params.get("beach"); // a shared link points at this beach
 let map = null;
@@ -362,8 +367,7 @@ function card(v, reportOpen, when, alertOpen) {
   if (beach.cams && beach.cams.length) facts.append(camLine(beach.cams));
   if (beach.curated) node.querySelector(".facts").after(lotList(beach));
 
-  const notes = node.querySelector(".notes");
-  for (const n of (live && live.notes) || []) notes.append(el("li", `“${n.note}” (${ago(n.time)})`));
+  reportList(node, beach);
 
   const dest = `${beach.lat},${beach.lon}`;
   node.querySelector(".directions").href =
@@ -374,6 +378,75 @@ function card(v, reportOpen, when, alertOpen) {
   buildReportForm(node, beach, reportOpen);
   buildAlertForm(node, beach, alertOpen);
   return node;
+}
+
+// --- Recent reports and votes -------------------------------------------------
+
+// Each report from the last few hours, with 👍/👎 so beachgoers can confirm or flag it.
+function reportList(node, beach) {
+  const reports = recentReports(state.reports[beach.id] || []);
+  const box = node.querySelector(".reports-list");
+  if (!reports.length) return;
+  box.hidden = false;
+  box.open = state.openLists.has(beach.id) ? state.openLists.get(beach.id) : reports.length <= 3;
+  box.addEventListener("toggle", () => state.openLists.set(beach.id, box.open));
+  box.querySelector("summary").textContent = `Recent reports (${reports.length})`;
+  box.querySelector("ul").replaceChildren(...reports.map((r) => reportItem(beach, r)));
+}
+
+function reportItem(beach, r) {
+  const li = el("li", null, "report-item");
+  if (isFlagged(r)) {
+    li.classList.add("flagged");
+    li.append(el("span", `Hidden: beachgoers flagged this report as wrong (${ago(r.time)})`));
+    return li;
+  }
+  const bits = [crowdLabel(r.crowd)];
+  if (r.parking) bits.push(PARKING_LABELS[r.parking]);
+  bits.push(ago(r.time));
+  li.append(el("span", bits.join(" · "), "what"));
+  if (r.note) li.append(el("span", `“${r.note}”`, "said"));
+  const votes = el("span", null, "votes");
+  if (r.id && state.mine.has(r.id)) {
+    votes.append(el("span", `Your report · 👍 ${r.up || 0} · 👎 ${r.down || 0}`, "fine"));
+  } else if (r.id) {
+    const mine = state.myVotes[r.id];
+    for (const [vote, icon, label] of [["up", "👍", "Accurate"], ["down", "👎", "Wrong"]]) {
+      const b = el("button", `${icon} ${r[vote] || 0}`, "vote");
+      b.type = "button";
+      b.title = label;
+      b.setAttribute("aria-label", `${label} (${r[vote] || 0})`);
+      b.setAttribute("aria-pressed", String(mine === vote));
+      b.disabled = !!mine;
+      b.addEventListener("click", () => castVote(beach, r, vote, votes));
+      votes.append(b);
+    }
+  }
+  li.append(votes);
+  return li;
+}
+
+async function castVote(beach, report, vote, box) {
+  for (const b of box.querySelectorAll("button")) b.disabled = true;
+  try {
+    const totals = demo
+      ? { up: (report.up || 0) + (vote === "up"), down: (report.down || 0) + (vote === "down") }
+      : await sendVote({ beachId: beach.id, reportId: report.id, vote });
+    Object.assign(report, totals);
+    state.myVotes[report.id] = vote;
+    save_(VOTES_KEY, state.myVotes);
+    render();
+    setStatus(vote === "up" ? "Thanks for confirming that report." : "Thanks. Reports enough people flag get hidden.");
+  } catch (err) {
+    if (/already voted/i.test(err.message)) {
+      state.myVotes[report.id] = vote;
+      save_(VOTES_KEY, state.myVotes);
+      render();
+    } else {
+      for (const b of box.querySelectorAll("button")) b.disabled = false;
+    }
+    setStatus(err.message, true);
+  }
 }
 
 // --- Alerts ------------------------------------------------------------------
@@ -673,7 +746,7 @@ function buildReportForm(node, beach, open) {
         }
       }
       msg.textContent = "Sending…";
-      const { shared } = await sendReport({
+      const { shared, id } = await sendReport({
         beachId: beach.id,
         crowd: Number(crowd.value),
         parking: parking && parking.value,
@@ -681,6 +754,10 @@ function buildReportForm(node, beach, open) {
         slot: slotKey(new Date()),
       });
       state.shared = shared;
+      if (id) {
+        state.mine.add(id);
+        save_(MINE_KEY, [...state.mine].slice(-100));
+      }
       form.hidden = true;
       await refreshReports();
       setStatus(`Thanks! Your report for ${beach.name} is ${shared ? "live for everyone" : "saved on this device"}.`);

@@ -44,17 +44,33 @@ function partOfDay(hour) {
   return "evening";
 }
 
-// What beachgoers are reporting right now. Recent reports count most.
-// reports: [{ time: ms, crowd: 1..5, parking?: "plenty"|"some"|"full" }]
+// Beachgoers' votes on a report: 2+ downvotes outnumbering upvotes hide it ("flagged"); otherwise
+// each net upvote adds a quarter to its weight (up to double), and a net downvote halves it.
+const isFlagged = (r) => (r.down || 0) >= 2 && (r.down || 0) > (r.up || 0);
+function voteWeight(r) {
+  if (isFlagged(r)) return 0;
+  const net = (r.up || 0) - (r.down || 0);
+  return net >= 0 ? 1 + 0.25 * Math.min(net, 4) : 0.5;
+}
+
+// Reports from the last few hours, newest first (flagged ones included, for showing).
+function recentReports(reports, now = Date.now()) {
+  return (reports || [])
+    .filter((r) => now - r.time >= -MIN_MS && now - r.time <= LIVE_WINDOW_MS)
+    .sort((a, b) => b.time - a.time);
+}
+
+// What beachgoers are reporting right now. Recent and upvoted reports count most; flagged ones
+// don't count. reports: [{ time: ms, crowd: 1..5, parking?: "plenty"|"some"|"full", up?, down? }]
 // Returns null when there's nothing recent enough.
 function liveStatus(reports, now = Date.now()) {
-  const recent = reports.filter((r) => now - r.time >= -MIN_MS && now - r.time <= LIVE_WINDOW_MS);
+  const recent = recentReports(reports, now).filter((r) => !isFlagged(r));
   if (!recent.length) return null;
   let crowdSum = 0;
   let weightSum = 0;
   const parkingVotes = {};
   for (const r of recent) {
-    const w = 0.5 ** (Math.max(0, now - r.time) / HALF_LIFE_MS);
+    const w = 0.5 ** (Math.max(0, now - r.time) / HALF_LIFE_MS) * voteWeight(r);
     crowdSum += r.crowd * w;
     weightSum += w;
     if (r.parking) parkingVotes[r.parking] = (parkingVotes[r.parking] || 0) + w;
@@ -66,7 +82,7 @@ function liveStatus(reports, now = Date.now()) {
     parking: parkingEntries.length ? parkingEntries[0][0] : null,
     count: recent.length,
     newest,
-    notes: recent.filter((r) => r.note).sort((a, b) => b.time - a.time).slice(0, 3),
+    notes: recent.filter((r) => r.note).slice(0, 3),
   };
 }
 
@@ -127,6 +143,6 @@ function estimateCrowd({ date, lat, weather, history }) {
 if (typeof module !== "undefined") {
   module.exports = {
     CROWD_LABELS, PARKING_LABELS, crowdLabel, distanceKm, driveMinutes, isWeekend, slotKey,
-    liveStatus, seasonFactor, weatherFactor, estimateCrowd,
+    liveStatus, recentReports, isFlagged, voteWeight, seasonFactor, weatherFactor, estimateCrowd,
   };
 }

@@ -27,8 +27,9 @@ function fakeStore(t, answer) {
 }
 
 test("parseReport accepts a good report and trims the note", () => {
-  const r = parseReport({ beachId: "osm:way/123", crowd: 4, parking: "some", note: "  lot   full ", slot: "we:14" }, 1000);
-  assert.deepStrictEqual(r, { beachId: "osm:way/123", slot: "we:14", report: { time: 1000, crowd: 4, parking: "some", note: "lot full" } });
+  const r = parseReport({ beachId: "osm:way/123", crowd: 4, parking: "some", note: "  lot   full ", slot: "we:14" }, 1000, "abcdef0123");
+  assert.deepStrictEqual(r, { beachId: "osm:way/123", slot: "we:14", report: { id: "abcdef0123", time: 1000, crowd: 4, parking: "some", note: "lot full" } });
+  assert.match(parseReport({ beachId: "osm:way/1", crowd: 1, slot: "wd:9" }).report.id, /^[a-f0-9]{10}$/);
 });
 
 test("parseReport rejects bad input", () => {
@@ -55,15 +56,17 @@ test("without a store the API says it isn't configured", async () => {
   assert.strictEqual(res.statusCode, 503);
 });
 
-test("GET returns recent reports and history", async (t) => {
+test("GET returns recent reports with their votes, and history", async (t) => {
   const now = Date.now();
-  fakeStore(t, (c) => (c[0] === "LRANGE"
-    ? [JSON.stringify({ time: now, crowd: 3 }), JSON.stringify({ time: now - 7 * 3600e3, crowd: 5 }), "junk"]
-    : ["we:14:sum", "8", "we:14:n", "2"]));
+  fakeStore(t, (c) => {
+    if (c[0] === "LRANGE") return [JSON.stringify({ id: "aaaaaaaaaa", time: now, crowd: 3 }), JSON.stringify({ time: now, crowd: 2 }), JSON.stringify({ time: now - 7 * 3600e3, crowd: 5 }), "junk"];
+    if (c[1].startsWith("votes:")) return ["aaaaaaaaaa:up", "2", "aaaaaaaaaa:down", "1", "zzz:up", "4"];
+    return ["we:14:sum", "8", "we:14:n", "2"];
+  });
   const res = fakeRes();
   await handler({ method: "GET", query: { ids: "osm:way/1,bad id" } }, res);
   assert.strictEqual(res.statusCode, 200);
-  assert.deepStrictEqual(res.body.reports, { "osm:way/1": [{ time: now, crowd: 3 }] });
+  assert.deepStrictEqual(res.body.reports, { "osm:way/1": [{ id: "aaaaaaaaaa", time: now, crowd: 3, up: 2, down: 1 }, { time: now, crowd: 2 }] });
   assert.deepStrictEqual(res.body.history, { "osm:way/1": { "we:14": { sum: 8, count: 2 } } });
 });
 
@@ -78,7 +81,8 @@ test("POST stores the report and updates history", async (t) => {
   assert.strictEqual(res.statusCode, 200);
   assert.deepStrictEqual(calls[0][0], ["SET", "rl:1.2.3.4:osm:way/1", "1", "NX", "EX", 600]);
   const names = calls[1].map((c) => c[0]);
-  assert.deepStrictEqual(names, ["LPUSH", "LTRIM", "EXPIRE", "HINCRBY", "HINCRBY"]);
+  assert.deepStrictEqual(names, ["LPUSH", "LTRIM", "EXPIRE", "HINCRBY", "HINCRBY", "SET"]);
+  assert.match(calls[1][5][1], /^by:[a-f0-9]{10}$/);
   assert.deepStrictEqual(calls[1][3], ["HINCRBY", "hist:osm:way/1", "we:14:sum", 5]);
 });
 
@@ -182,4 +186,57 @@ test("watchers alerted recently aren't alerted again, and push trouble never fai
   await handler({ method: "POST", headers: {}, body: { beachId: "osm:way/1", crowd: 5, slot: "we:14" } }, res);
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(push.mock.callCount(), 0);
+});
+
+
+// --- Votes ---------------------------------------------------------------
+
+const votesHandler = require("../api/votes.js");
+const { visitorKey } = require("../api/_store.js");
+
+function voteStore(t, { author = "someone-else", fresh = "OK", count = 1, exists = true } = {}) {
+  return fakeStore(t, (c) => {
+    if (c[0] === "INCR") return count;
+    if (c[0] === "LRANGE") return exists ? [JSON.stringify({ id: "abcdef0123", time: Date.now(), crowd: 4 })] : [];
+    if (c[0] === "GET") return author;
+    if (c[0] === "SET" && c[1].startsWith("voted:")) return fresh;
+    if (c[0] === "HGETALL") return ["abcdef0123:up", "3", "abcdef0123:down", "1"];
+    return "OK";
+  });
+}
+const voteReq = (body, ip = "5.6.7.8") => ({ method: "POST", headers: { "x-forwarded-for": ip }, body });
+
+test("a vote is counted once per visitor and returns the new totals", async (t) => {
+  const calls = voteStore(t);
+  const res = fakeRes();
+  await votesHandler(voteReq({ beachId: "osm:way/1", reportId: "abcdef0123", vote: "up" }), res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.deepStrictEqual(res.body, { up: 3, down: 1 });
+  const write = calls[calls.length - 1];
+  assert.deepStrictEqual(write[0], ["HINCRBY", "votes:osm:way/1", "abcdef0123:up", 1]);
+  assert.deepStrictEqual(calls[1][0].slice(0, 4), ["SET", "voted:abcdef0123:" + visitorKey({ headers: { "x-forwarded-for": "5.6.7.8" } }), "1", "NX"]);
+});
+
+test("votes are refused twice, on your own report, on expired reports and when bad", async (t) => {
+  const cases = [
+    [{ fresh: null }, 409],
+    [{ author: visitorKey({ headers: { "x-forwarded-for": "5.6.7.8" } }) }, 403],
+    [{ exists: false }, 404],
+    [{ count: 61 }, 429],
+  ];
+  for (const [opts, status] of cases) {
+    await t.test(String(status), async (t2) => {
+      voteStore(t2, opts);
+      const res = fakeRes();
+      await votesHandler(voteReq({ beachId: "osm:way/1", reportId: "abcdef0123", vote: "down" }), res);
+      assert.strictEqual(res.statusCode, status);
+    });
+  }
+  const calls = voteStore(t);
+  for (const body of [{ beachId: "osm:way/1", reportId: "nope", vote: "up" }, { beachId: "osm:way/1", reportId: "abcdef0123", vote: "meh" }]) {
+    const res = fakeRes();
+    await votesHandler(voteReq(body), res);
+    assert.strictEqual(res.statusCode, 400);
+  }
+  assert.strictEqual(calls.length, 0);
 });

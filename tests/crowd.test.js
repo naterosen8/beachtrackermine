@@ -100,3 +100,24 @@ test("too few past reports are ignored", () => {
   const r = estimateCrowd({ date: saturday(13), lat: 34, weather: warm, history });
   assert.strictEqual(r.fromHistory, 0);
 });
+
+test("votes: upvoted reports count more, flagged ones not at all", () => {
+  const { liveStatus, isFlagged, voteWeight, recentReports } = require("../js/crowd.js");
+  const now = Date.now();
+  assert.strictEqual(voteWeight({}), 1);
+  assert.strictEqual(voteWeight({ up: 2 }), 1.5);
+  assert.strictEqual(voteWeight({ up: 10 }), 2);
+  assert.strictEqual(voteWeight({ up: 1, down: 2 }), 0);
+  assert.strictEqual(voteWeight({ down: 1 }), 0.5);
+  assert.strictEqual(isFlagged({ up: 2, down: 2 }), false); // a tie isn't enough to hide it
+  const reports = [
+    { time: now, crowd: 5, down: 3 }, // flagged: ignored
+    { time: now, crowd: 1, up: 4 },
+    { time: now, crowd: 3 },
+  ];
+  const live = liveStatus(reports, now);
+  assert.strictEqual(live.count, 2);
+  assert.ok(Math.abs(live.crowd - (1 * 2 + 3 * 1) / 3) < 1e-9);
+  assert.strictEqual(liveStatus([{ time: now, crowd: 5, down: 2 }], now), null);
+  assert.strictEqual(recentReports(reports, now).length, 3); // still listed, marked flagged in the UI
+});

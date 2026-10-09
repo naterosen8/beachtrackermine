@@ -25,6 +25,23 @@ function clientIp(req) {
   return fwd.split(",")[0].trim() || "unknown";
 }
 
+// A visitor's address, hashed, for keys that only need to tell visitors apart.
+const visitorKey = (req) => require("crypto").createHash("sha256").update(`beachcheck:${clientIp(req)}`).digest("hex").slice(0, 20);
+
+const REPORT_ID_RE = /^[a-f0-9]{10}$/;
+const newReportId = () => require("crypto").randomBytes(5).toString("hex");
+
+// HGETALL of votes:<beachId> ("<reportId>:up" -> n) as { reportId: { up, down } }.
+function parseVotes(flat) {
+  const votes = {};
+  for (let i = 0; i + 1 < (flat || []).length; i += 2) {
+    const m = /^([a-f0-9]{10}):(up|down)$/.exec(flat[i]);
+    if (!m) continue;
+    (votes[m[1]] = votes[m[1]] || { up: 0, down: 0 })[m[2]] = Number(flat[i + 1]) || 0;
+  }
+  return votes;
+}
+
 async function readBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
   if (typeof req.body === "string") return JSON.parse(req.body);
@@ -56,4 +73,4 @@ async function sendPush(sub, payload, keys) {
   }
 }
 
-module.exports = { store, clientIp, readBody, pushKeys, sendPush };
+module.exports = { store, clientIp, visitorKey, readBody, pushKeys, sendPush, REPORT_ID_RE, newReportId, parseVotes };

@@ -15,14 +15,15 @@ const DEMO_BEACHES = [
 
 const DEMO_REPORTS = {
   "demo:santa-monica": [
-    { ago: 6, crowd: 5, parking: "full", note: "Pier lot full, try 4th St garage" },
-    { ago: 25, crowd: 4, parking: "some" },
-    { ago: 70, crowd: 4, parking: "some" },
+    { id: "d000000001", ago: 6, crowd: 5, parking: "full", note: "Pier lot full, try 4th St garage", up: 3 },
+    { id: "d000000002", ago: 25, crowd: 4, parking: "some" },
+    { id: "d000000003", ago: 70, crowd: 4, parking: "some" },
+    { id: "d000000004", ago: 30, crowd: 1, parking: "plenty", note: "totally empty!!", up: 0, down: 3 },
   ],
-  "demo:venice": [{ ago: 40, crowd: 3, parking: "some" }],
+  "demo:venice": [{ id: "d000000005", ago: 40, crowd: 3, parking: "some" }],
   "demo:manhattan": [
-    { ago: 12, crowd: 2, parking: "plenty", note: "Lots of space north of the pier" },
-    { ago: 55, crowd: 2, parking: "plenty" },
+    { id: "d000000006", ago: 12, crowd: 2, parking: "plenty", note: "Lots of space north of the pier" },
+    { id: "d000000007", ago: 55, crowd: 2, parking: "plenty" },
   ],
 };
 

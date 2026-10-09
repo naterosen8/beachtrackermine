@@ -63,6 +63,10 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
 - **Live reports**: `api/reports.js`, a Vercel function storing reports in Upstash Redis. Recent
   reports (last 3 hours, newer ones count more) give the live crowd and parking. Every report also
   adds to that beach's totals per weekday/weekend hour, which improves future estimates.
+- **Votes on reports** (`api/votes.js`): every report lists under "Recent reports" with 👍/👎. One
+  vote per visitor per report, never on your own. Each net upvote adds a quarter to a report's
+  weight in the live crowd (up to double); a net downvote halves it; 2+ downvotes outnumbering the
+  upvotes hide it as flagged.
 - **Estimates** (`js/crowd.js`): typical hourly pattern × weekend boost × season (flipped south of
   the equator) × weather, blended with the beach's own past reports once there are at least 3.
 - **Directions**: opens Google Maps driving directions to the beach.
@@ -108,6 +112,6 @@ node --test tests/*.test.js   # run the tests
 2. [x] Live beachgoer reports, with estimates that learn from past reports
 3. [x] Alerts: tell me when my favorite beach gets busy or parking fills up
 4. [x] Favorites and a "my beaches" view, filters, share links, plan up to a week ahead
-5. [ ] Photos with reports, and up/down votes on reports to weed out bad ones
+5. [ ] Photos with reports, and up/down votes on reports to weed out bad ones (votes done)
 6. [x] Tides, water quality and surf conditions
 7. [ ] Accounts and reporter reputation

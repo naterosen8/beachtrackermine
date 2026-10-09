@@ -1,11 +1,12 @@
 // Vercel serverless function for beachgoer reports, stored in Upstash Redis (or Vercel KV).
 //   GET  /api/reports?ids=osm:way/1,osm:node/2  -> { reports: { id: [report] }, history: { id: { slot: { sum, count } } } }
 //   POST /api/reports { beachId, crowd: 1..5, parking?, note?, slot: "we:14" } -> { ok: true, report }
+// Each report has an id that beachgoers vote on (api/votes.js); GET adds its { up, down } counts.
 // Recent reports expire after a few hours; per-slot totals are kept so we can learn each beach's patterns.
 // After each report, anyone watching that beach (api/alerts.js) gets a push if it's now busy.
 // Without a store configured it answers 503, and the site falls back to saving reports on the device.
 
-const { store, clientIp, readBody, pushKeys, sendPush } = require("./_store.js");
+const { store, clientIp, visitorKey, readBody, pushKeys, sendPush, newReportId, parseVotes } = require("./_store.js");
 const { liveStatus } = require("../js/crowd.js");
 const { alertReason, alertMessage, ALERT_COOLDOWN_MS } = require("../js/alerts.js");
 
@@ -19,7 +20,7 @@ const ID_RE = /^(osm:(node|way|relation)\/\d{1,15}|demo:[a-z0-9-]{1,40})$/;
 const SLOT_RE = /^(we|wd):([01]?\d|2[0-3])$/;
 
 // Checks a submitted report; returns the cleaned report or throws with a message for the user.
-function parseReport(body, now = Date.now()) {
+function parseReport(body, now = Date.now(), id = newReportId()) {
   const b = body && typeof body === "object" ? body : {};
   if (typeof b.beachId !== "string" || !ID_RE.test(b.beachId)) throw new Error("Unknown beach");
   const crowd = Number(b.crowd);
@@ -27,7 +28,7 @@ function parseReport(body, now = Date.now()) {
   if (b.parking != null && !PARKING.includes(b.parking)) throw new Error("Unknown parking value");
   if (typeof b.slot !== "string" || !SLOT_RE.test(b.slot)) throw new Error("Missing time slot");
   const note = typeof b.note === "string" ? b.note.replace(/\s+/g, " ").trim().slice(0, 140) : "";
-  const report = { time: now, crowd };
+  const report = { id, time: now, crowd };
   if (b.parking) report.parking = b.parking;
   if (note) report.note = note;
   return { beachId: b.beachId, slot: b.slot, report };
@@ -90,14 +91,17 @@ async function handler(req, res) {
       const results = await run(ids.flatMap((id) => [
         ["LRANGE", `recent:${id}`, 0, MAX_RECENT - 1],
         ["HGETALL", `hist:${id}`],
+        ["HGETALL", `votes:${id}`],
       ]));
       const cutoff = Date.now() - KEEP_SECONDS * 1000;
       const reports = {};
       const history = {};
       ids.forEach((id, i) => {
-        reports[id] = (results[2 * i] || []).map((s) => { try { return JSON.parse(s); } catch { return null; } })
-          .filter((r) => r && r.time >= cutoff);
-        history[id] = parseHistory(results[2 * i + 1]);
+        const votes = parseVotes(results[3 * i + 2]);
+        reports[id] = (results[3 * i] || []).map((s) => { try { return JSON.parse(s); } catch { return null; } })
+          .filter((r) => r && r.time >= cutoff)
+          .map((r) => (r.id && votes[r.id] ? { ...r, ...votes[r.id] } : r));
+        history[id] = parseHistory(results[3 * i + 1]);
       });
       return res.status(200).json({ reports, history });
     }
@@ -118,6 +122,7 @@ async function handler(req, res) {
         ["EXPIRE", `recent:${beachId}`, KEEP_SECONDS],
         ["HINCRBY", `hist:${beachId}`, `${slot}:sum`, report.crowd],
         ["HINCRBY", `hist:${beachId}`, `${slot}:n`, 1],
+        ["SET", `by:${report.id}`, visitorKey(req), "EX", KEEP_SECONDS], // so nobody votes on their own report
       ]);
       const keys = pushKeys(req);
       if (keys) {
