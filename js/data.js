@@ -170,6 +170,7 @@ async function getWeather(center) {
     longitude: center.lon.toFixed(3),
     hourly: "temperature_2m,precipitation,precipitation_probability,wind_speed_10m,uv_index",
     forecast_days: String(FORECAST_DAYS),
+    past_days: "3", // recent rain, for the water quality advisory
     timeformat: "unixtime",
   });
   const json = await getJson(`https://api.open-meteo.com/v1/forecast?${params}`);
@@ -224,6 +225,25 @@ function parseMarine(beaches, results) {
     if (hours.some((x) => x.waveM != null || x.level != null)) out[b.id] = hours;
   });
   return out;
+}
+
+// Santa Barbara County's weekly ocean water testing (Environmental Health Services), from the
+// public map layer behind countyofsb.org/ch-ocean-water-monitoring-program.
+const WATER_LAYER = "https://services.arcgis.com/KkJhFbLnXVqahKz2/arcgis/rest/services/Ocean_Water_Quality_Points_Public/FeatureServer/0/query";
+const SB_COUNTY_BOX = { south: 34.3, north: 35.15, west: -120.7, east: -119.4 };
+
+// Sampling sites with their latest status, when any beach is in Santa Barbara County; else [].
+async function getWaterQuality(beaches, fetchJson = getJson) {
+  const inCounty = beaches.some((b) => b.lat >= SB_COUNTY_BOX.south && b.lat <= SB_COUNTY_BOX.north && b.lon >= SB_COUNTY_BOX.west && b.lon <= SB_COUNTY_BOX.east);
+  if (!inCounty) return [];
+  const params = new URLSearchParams({
+    where: "1=1",
+    outFields: "Identifier,Beach_Name,Beach_status,StatusDate,Notes,entercoccus_result,total_coliform_result,e_coli_result",
+    returnGeometry: "true",
+    outSR: "4326",
+    f: "json",
+  });
+  return parseWaterStations(await fetchJson(`${WATER_LAYER}?${params}`));
 }
 
 const US_ZIP_RE = /^\d{5}(-\d{4})?$/;
@@ -355,5 +375,5 @@ async function sendReport({ beachId, crowd, parking, note, slot }) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine };
+  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality };
 }

@@ -52,6 +52,7 @@
         <label class="chip"><input type="checkbox" id="f-guard"><span>Lifeguards</span></label>
         <label class="chip"><input type="checkbox" id="f-dogs"><span>Dogs OK</span></label>
         <label class="chip"><input type="checkbox" id="f-free"><span>Free parking</span></label>
+        <label class="chip"><input type="checkbox" id="f-water"><span>No water warnings</span></label>
       </fieldset>
     </div>
 
@@ -69,7 +70,7 @@
     <div id="map" class="map" hidden></div>
     <ol id="beaches" class="beaches"></ol>
 
-    <p class="fine">Beaches and parking from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors. Weather, waves, water temperature and tides from <a href="https://open-meteo.com/">Open-Meteo</a> (tides are modelled: check a tide table before tidepooling or walking around points). Live street-meter occupancy in Los Angeles from <a href="https://data.lacity.org/">LADOT open data</a>. Crowd estimates are guesses: check live reports and conditions before you go, and swim near lifeguards.</p>
+    <p class="fine">Beaches and parking from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors. Weather, waves, water temperature and tides from <a href="https://open-meteo.com/">Open-Meteo</a> (tides are modelled: check a tide table before tidepooling or walking around points). Ocean water testing from <a href="https://www.countyofsb.org/ch-ocean-water-monitoring-program">Santa Barbara County Environmental Health</a> (hotline 805-681-4949). Live street-meter occupancy in Los Angeles from <a href="https://data.lacity.org/">LADOT open data</a>. Crowd estimates are guesses: check live reports and conditions before you go, and swim near lifeguards.</p>
   </main>
 
   <template id="beach-card">
@@ -134,6 +135,7 @@
   <script src="js/crowd.js"></script>
   <script src="js/conditions.js"></script>
   <script src="js/alerts.js"></script>
+  <script src="js/water.js"></script>
   <script src="js/data.js"></script>
   <script src="js/meters.js"></script>
   <script src="js/santa-barbara.js"></script>

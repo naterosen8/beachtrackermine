@@ -22,6 +22,7 @@ const state = {
   shared: true,
   meters: {}, // live LA street-meter counts by beach id
   marine: {}, // hourly waves, water temperature and tide by beach id
+  water: [], // county water quality sampling sites
   updated: null, // when live reports were last fetched
   favorites: new Set(load_(FAVORITES_KEY) || []),
   alerts: load_(ALERTS_KEY) || {},
@@ -120,9 +121,12 @@ function planFor(time) {
   render();
 }
 
+const FILTERS = ["f-fav", "f-guard", "f-dogs", "f-free", "f-water"];
+
 // Beach features the filter chips look for.
 const hasLifeguards = (b) => b.lifeguard === "yes" || !!b.lifeguards;
 const dogFriendly = (b) => b.dogs === "yes" || b.dogs === "leashed" || !!b.dogArea;
+const waterWarning = (b) => ["warning", "closed"].includes(worstWater(waterFor(b, state.water)));
 const freeParking = (b) => (b.lots ? b.lots.some((l) => l.fee === "free") : !!b.freeParking);
 
 function filtered(beaches) {
@@ -130,7 +134,8 @@ function filtered(beaches) {
     (!$("f-fav").checked || state.favorites.has(b.id)) &&
     (!$("f-guard").checked || hasLifeguards(b)) &&
     (!$("f-dogs").checked || dogFriendly(b)) &&
-    (!$("f-free").checked || freeParking(b)));
+    (!$("f-free").checked || freeParking(b)) &&
+    (!$("f-water").checked || !waterWarning(b)));
 }
 
 function toggleFavorite(id) {
@@ -181,6 +186,8 @@ function describe(beach, when) {
   const sea = marineAt(marineHours, when.getTime());
   const tide = marineHours ? tideAt(marineHours, when.getTime()) : null;
   const sun = sunTimes(when, beach.lat, beach.lon);
+  const water = waterFor(beach, state.water);
+  const waterLevel = worstWater(water);
   const day = dayForecast({
     day: when,
     lat: beach.lat,
@@ -190,6 +197,8 @@ function describe(beach, when) {
 
   return {
     beach,
+    water,
+    waterLevel,
     sea,
     tide,
     sun,
@@ -202,7 +211,8 @@ function describe(beach, when) {
     weather,
     parking,
     // Lower is better: quieter, closer, easier to park.
-    score: crowd + beach.distanceKm / 10 + (3 - parking.score) * 0.5,
+    // A water quality warning or closure pushes the beach well down the best picks.
+    score: crowd + beach.distanceKm / 10 + (3 - parking.score) * 0.5 + (waterLevel === "closed" ? 3 : waterLevel === "warning" ? 1.5 : 0),
   };
 }
 
@@ -267,11 +277,13 @@ function headsUp() {
     link.href = `#${encodeURIComponent(b.id)}`;
     link.addEventListener("click", (e) => {
       e.preventDefault();
-      if (filtered([b]).length === 0) for (const id of ["f-fav", "f-guard", "f-dogs", "f-free"]) $(id).checked = false;
+      if (filtered([b]).length === 0) for (const id of FILTERS) $(id).checked = false;
       focusId = b.id;
       render();
     });
     li.append(link, document.createTextNode(`: ${text}`));
+    const wl = worstWater(waterFor(b, state.water));
+    if (wl === "warning" || wl === "closed") li.append(el("span", ` · water ${wl === "closed" ? "closed" : "quality warning"}`, "water-warning"));
     if (state.alerts[b.id]) li.append(el("span", " 🔔", "bell"));
     return li;
   });
@@ -289,7 +301,7 @@ function showFocus() {
 }
 
 function card(v, reportOpen, when, alertOpen) {
-  const { beach, meters, live, useLive, crowd, est, weather, parking, sea, tide, sun, day } = v;
+  const { beach, meters, live, useLive, crowd, est, weather, parking, sea, tide, sun, day, water } = v;
   const node = $("beach-card").content.firstElementChild.cloneNode(true);
   const level = Math.min(5, Math.max(1, Math.round(crowd)));
   node.dataset.id = beach.id;
@@ -326,6 +338,7 @@ function card(v, reportOpen, when, alertOpen) {
     if (weather.uv != null) bits.push(`UV ${Math.round(weather.uv)}`);
     facts.append(el("li", `Weather then: ${bits.join(", ")}`));
   }
+  for (const line of waterLines(water)) facts.append(line);
   if (sea && sea.waveM != null) {
     const period = sea.periodS ? `, ${Math.round(sea.periodS)} s apart` : "";
     facts.append(el("li", `Surf: ${surfLabel(sea.waveM)} (${fmtHeight(sea.waveM)}${period})`));
@@ -555,6 +568,33 @@ async function shareBeach(beach, button) {
   }
 }
 
+const WATER_TEXT = {
+  open: "Meets state health standards",
+  warning: "Warning: bacteria above state health standards. The county advises staying out of the water here",
+  closed: "Closed to swimming by the county",
+  unknown: "Status not reported",
+};
+
+// One line per county sampling site near the beach, plus the rain advisory after recent rain.
+function waterLines(sites) {
+  const lines = [];
+  const fmtDate = (ms) => new Date(ms).toLocaleDateString([], { month: "short", day: "numeric", timeZone: "UTC" });
+  for (const site of sites) {
+    const li = el("li", null, `water water-${site.status}`);
+    const where = sites.length > 1 || !/^(the )?beach$/i.test(site.name) ? ` at ${site.name}` : "";
+    const when = site.date ? ` (tested ${fmtDate(site.date)}${isStale(site) ? ", may be out of date" : ""})` : "";
+    li.append(el("strong", `Water quality${where}: `), document.createTextNode(`${WATER_TEXT[site.status]}${when}.`));
+    if (site.status !== "open" && site.notes) li.append(el("span", ` ${site.notes}`, "fine"));
+    lines.push(li);
+  }
+  const rain = state.weather ? recentRainMm(state.weather) : 0;
+  if (rain >= RAIN_ADVISORY_MM) {
+    const amount = imperial ? `${(rain / 25.4).toFixed(1)} in` : `${Math.round(rain)} mm`;
+    lines.push(el("li", `Rain advisory: ${amount} of rain in the last 3 days. Health officials advise staying out of the ocean for 72 hours after significant rain, when runoff carries bacteria.`, "water water-warning"));
+  }
+  return lines;
+}
+
 // "Live cams: Leadbetter Point (Surfline) · Stearns Wharf & harbor (SkylineWebcams)"
 function camLine(cams) {
   const li = el("li", "Live cams: ");
@@ -750,6 +790,19 @@ async function refreshMarine() {
   }
 }
 
+// County water quality testing. Optional: failures just leave those lines out.
+async function refreshWater() {
+  const beaches = state.beaches;
+  try {
+    const water = await getWaterQuality(beaches);
+    if (beaches !== state.beaches) return;
+    state.water = water;
+    if (water.length) render();
+  } catch {
+    // keep whatever we had
+  }
+}
+
 function beachesStatus(radius, center) {
   const updated = state.updated ? ` Live reports updated ${fmtClock(state.updated)}.` : "";
   return `${state.beaches.length} beaches within ${fmtDistance(radius)} of ${center.label}.${updated}`;
@@ -776,6 +829,7 @@ async function load(center) {
   state.center = center;
   state.meters = {};
   state.marine = {};
+  state.water = [];
   rememberPlace(center);
   setStatus(`Finding beaches near ${center.label}…`);
   let radius = Number($("radius").value);
@@ -799,6 +853,7 @@ async function load(center) {
     $("plan").hidden = false;
     await refreshReports();
     refreshMarine();
+    refreshWater();
     setStatus(beachesStatus(radius, center));
     findBeaches(center, radius)
       .then(async (found) => {
@@ -806,6 +861,7 @@ async function load(center) {
         state.beaches = mergeWithCurated(state.beaches.filter((b) => b.curated), found);
         await refreshReports();
         refreshMarine();
+        refreshWater();
         setStatus(beachesStatus(radius, center));
       })
       .catch(() => {}); // the hand-checked list is already showing
@@ -848,6 +904,7 @@ async function load(center) {
   await refreshReports();
   refreshMeters();
   refreshMarine();
+  refreshWater();
   setStatus(beachesStatus(radius, center));
 }
 
@@ -880,7 +937,7 @@ fillPlanMenus();
 $("day").addEventListener("change", () => { syncTimeMenu(); render(); });
 $("time").addEventListener("change", render);
 $("sort").addEventListener("change", render);
-for (const id of ["f-fav", "f-guard", "f-dogs", "f-free"]) $(id).addEventListener("change", render);
+for (const id of FILTERS) $(id).addEventListener("change", render);
 
 $("refresh").addEventListener("click", async () => {
   const button = $("refresh");

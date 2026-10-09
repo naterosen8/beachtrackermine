@@ -7,6 +7,10 @@ const SB_CENTER = { lat: 34.4105, lon: -119.6855, label: "Santa Barbara" }; // S
 // Searches centered in this box use the list below instead of the generic map lookup.
 const SB_BOX = { south: 34.33, north: 34.48, west: -119.95, east: -119.42 };
 
+// waterSites: Santa Barbara County Environmental Health sampling sites for each beach (ids from
+// the county's ocean water monitoring map). West Beach has none of its own; the Mission Creek site
+// is right next to it at Stearns Wharf. Isla Vista and Rincon aren't sampled by the county.
+
 // City waterfront lots: $3.50/hour, $20/day max, 8 a.m. to 10 p.m. (FY2026 fee schedule).
 const CITY_RATE = "$3.50/hr, $20/day max";
 const CITY_HOURS = "8 a.m.–10 p.m.";
@@ -23,7 +27,7 @@ const CAMS = {
 
 const SB_BEACHES = [
   {
-    id: "osm:way/446745489", name: "Leadbetter Beach", lat: 34.4009, lon: -119.7006, cams: [CAMS.leadbetter, CAMS.wharf],
+    id: "osm:way/446745489", name: "Leadbetter Beach", lat: 34.4009, lon: -119.7006, waterSites: ["WP0000007"], cams: [CAMS.leadbetter, CAMS.wharf],
     lots: [
       { name: "Leadbetter Lot", spaces: 268, fee: CITY_RATE, hours: CITY_HOURS },
       { name: "Harbor West Lot", spaces: 199, fee: CITY_RATE, hours: CITY_HOURS },
@@ -31,7 +35,7 @@ const SB_BEACHES = [
     ],
   },
   {
-    id: "osm:way/1050207589", name: "West Beach", lat: 34.4096, lon: -119.6909, cams: [CAMS.wharf],
+    id: "osm:way/1050207589", name: "West Beach", lat: 34.4096, lon: -119.6909, waterSites: ["WP0000085"], cams: [CAMS.wharf],
     summary: "2 lots · $3.50/hr (Stearns Wharf: 90 min free)",
     lots: [
       { name: "Harbor Main Lot", fee: "$3.50/hr, $20 per 24 hrs", hours: "open 24 hours, staffed kiosk" },
@@ -39,7 +43,7 @@ const SB_BEACHES = [
     ],
   },
   {
-    id: "osm:way/40117616", name: "East Beach", lat: 34.4145, lon: -119.6815, cams: [CAMS.wharf],
+    id: "osm:way/40117616", name: "East Beach", lat: 34.4145, lon: -119.6815, waterSites: ["WP0000085", "WP0000083"], cams: [CAMS.wharf],
     lots: [
       { name: "Garden Street Lot", spaces: 207, fee: CITY_RATE, hours: CITY_HOURS },
       { name: "Palm Park Lot", spaces: 267, fee: CITY_RATE, hours: CITY_HOURS },
@@ -48,29 +52,29 @@ const SB_BEACHES = [
     ],
   },
   {
-    id: "osm:way/345801519", name: "Arroyo Burro Beach (Hendry's)", aliases: ["Hendrys Beach", "Hendry's Beach"],
+    id: "osm:way/345801519", name: "Arroyo Burro Beach (Hendry's)", waterSites: ["WP0000147"], aliases: ["Hendrys Beach", "Hendry's Beach"],
     lat: 34.4027, lon: -119.7431, lifeguards: "seasonal", dogArea: true,
     lots: [{ name: "Arroyo Burro Beach Park lot (county)", fee: "free", hours: COUNTY_HOURS }],
   },
   {
-    id: "osm:way/44486969", name: "Butterfly Beach", lat: 34.4176, lon: -119.649,
+    id: "osm:way/44486969", name: "Butterfly Beach", lat: 34.4176, lon: -119.649, waterSites: ["WP0000023"],
     lots: [{ name: "Street parking along Channel Drive", fee: "free", street: true }],
   },
   {
-    id: "osm:way/44580911", name: "Goleta Beach", lat: 34.4166, lon: -119.8328, lifeguards: "seasonal", cams: [CAMS.campus],
+    id: "osm:way/44580911", name: "Goleta Beach", lat: 34.4166, lon: -119.8328, lifeguards: "seasonal", waterSites: ["WP0000037"], cams: [CAMS.campus],
     lots: [{ name: "Goleta Beach Park lot (county)", fee: "free", hours: COUNTY_HOURS }],
   },
   {
-    id: "osm:way/446746847", name: "Isla Vista Beach", lat: 34.4071, lon: -119.8499, cams: [CAMS.campus],
+    id: "osm:way/446746847", name: "Isla Vista Beach", lat: 34.4071, lon: -119.8499, waterSites: [], cams: [CAMS.campus],
     lots: [{ name: "Street parking in Isla Vista (no beach lot)", fee: "free", street: true }],
   },
   {
-    id: "osm:way/784388342", name: "Summerland Beach (Lookout Park)", lat: 34.4188, lon: -119.5961,
+    id: "osm:way/784388342", name: "Summerland Beach (Lookout Park)", lat: 34.4188, lon: -119.5961, waterSites: ["WP0000188"],
     lots: [{ name: "Lookout Park lot (county)", fee: "free", hours: COUNTY_HOURS }],
   },
   {
     id: "osm:way/165156074", name: "Carpinteria State Beach", lat: 34.3913, lon: -119.5215,
-    lifeguards: "yes", noDogsOnBeach: true, cams: [CAMS.carpinteria],
+    lifeguards: "yes", noDogsOnBeach: true, cams: [CAMS.carpinteria], waterSites: ["WP0000180"],
     summary: "$10 state lot, or free city lots on Linden Ave",
     lots: [
       { name: "State beach day-use parking", fee: "$10 per vehicle", hours: "sunrise–sunset" },
@@ -78,7 +82,7 @@ const SB_BEACHES = [
     ],
   },
   {
-    id: "osm:way/448594746", name: "Rincon Beach", lat: 34.3767, lon: -119.4807,
+    id: "osm:way/448594746", name: "Rincon Beach", lat: 34.3767, lon: -119.4807, waterSites: [],
     lots: [
       { name: "Rincon Beach Park lot (county, Bates Rd)", fee: "free", hours: COUNTY_HOURS },
       { name: "Rincon Point lot (state parks)" },

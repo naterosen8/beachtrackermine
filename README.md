@@ -47,6 +47,13 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   and period, sea surface temperature and sea level, for every beach in one request. Tide highs and
   lows are the turning points of the modelled sea level; only their times are shown, since the model
   measures from mean sea level rather than the tide-table zero.
+- **Water quality** (`js/water.js`): Santa Barbara County Environmental Health's weekly bacteria
+  testing (Open / Warning / Closed, with the sample date), read live from the public layer behind the
+  county's [Ocean Water Monitoring map](https://www.countyofsb.org/ch-ocean-water-monitoring-program).
+  Hand-checked beaches use their own sampling sites; other beaches use the nearest site within 1 km.
+  Beaches under a warning drop down the best picks, and "No water warnings" hides them. After 0.1 in
+  of rain in the last 72 hours (Open-Meteo, past 3 days) a rain advisory is shown. The state's
+  BeachWatch data was checked too, but it lags months behind.
 - **Live cams**: hand-checked camera links for Santa Barbara beaches: the SkylineWebcams cam over
   Stearns Wharf and the harbor, and Surfline's Leadbetter Point, Campus Point and Carpinteria cams.
 - **Sunrise and sunset**: worked out on the device from the beach's position and date.
@@ -102,5 +109,5 @@ node --test tests/*.test.js   # run the tests
 3. [x] Alerts: tell me when my favorite beach gets busy or parking fills up
 4. [x] Favorites and a "my beaches" view, filters, share links, plan up to a week ahead
 5. [ ] Photos with reports, and up/down votes on reports to weed out bad ones
-6. [ ] Tides, water quality and surf conditions (tides, surf and water temperature done; water quality to do)
+6. [x] Tides, water quality and surf conditions
 7. [ ] Accounts and reporter reputation

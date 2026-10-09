@@ -211,3 +211,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .alert-msg { font-size: 15px; color: var(--muted); }
 .check { display: flex; align-items: center; gap: 8px; font-size: 15px; }
 .check input { width: 18px; height: 18px; margin: 0; }
+
+.facts .water-warning, .heads-up .water-warning { color: var(--error); }
+.facts .water-closed { color: var(--error); font-weight: 600; }
+.facts .water .fine { display: block; font-size: 13px; }
