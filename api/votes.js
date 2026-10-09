@@ -2,8 +2,10 @@
 //   POST /api/votes { beachId, reportId, vote: "up"|"down" } -> { up, down }
 // One vote per visitor per report, never on your own. Counts live in votes:<beachId> and expire
 // with the reports; api/reports.js adds them to each report, and the page weighs reports by them.
+// Votes also move the reporter's points (+2 up, -2 down).
 
-const { store, visitorKey, readBody, REPORT_ID_RE, parseVotes } = require("./_store.js");
+const { awardPoints, store, visitorKey, readBody, REPORT_ID_RE, parseVotes } = require("./_store.js");
+const { POINTS } = require("../js/points.js");
 
 const KEEP_SECONDS = 6 * 60 * 60; // as long as reports are kept
 const VOTES_PER_HOUR = 60; // per visitor
@@ -31,11 +33,12 @@ async function handler(req, res) {
   try {
     const voter = visitorKey(req);
     const limitKey = `rl:votes:${voter}`;
-    const [, count, recent, author] = await run([
+    const [, count, recent, author, reporter] = await run([
       ["SET", limitKey, 0, "NX", "EX", 3600],
       ["INCR", limitKey],
       ["LRANGE", `recent:${beachId}`, 0, 49],
       ["GET", `by:${reportId}`],
+      ["GET", `rep:${reportId}`],
     ]);
     if (count > VOTES_PER_HOUR) return res.status(429).json({ error: "That's a lot of votes. Try again later." });
     const exists = (recent || []).some((s) => { try { return JSON.parse(s).id === reportId; } catch { return false; } });
@@ -47,6 +50,7 @@ async function handler(req, res) {
       ["HINCRBY", `votes:${beachId}`, `${reportId}:${vote}`, 1],
       ["EXPIRE", `votes:${beachId}`, KEEP_SECONDS],
       ["HGETALL", `votes:${beachId}`],
+      ...(reporter ? awardPoints(reporter, POINTS[vote]) : []), // the reporter gains or loses points
     ]);
     return res.status(200).json(parseVotes(flat)[reportId] || { up: 0, down: 0 });
   } catch (err) {

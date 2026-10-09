@@ -397,8 +397,8 @@ async function getReports(ids) {
 }
 
 // Sends a report; returns { shared } or throws with a message to show.
-async function sendReport({ beachId, crowd, parking, note, photo, slot }) {
-  const body = { beachId, crowd, parking: parking || undefined, note: note || undefined, photo: photo || undefined, slot };
+async function sendReport({ beachId, crowd, parking, note, photo, reporter, slot }) {
+  const body = { beachId, crowd, parking: parking || undefined, note: note || undefined, photo: photo || undefined, reporter, slot };
   let res;
   try {
     res = await fetch("api/reports", {

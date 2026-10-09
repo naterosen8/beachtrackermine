@@ -11,7 +11,8 @@ const PLACE_KEY = "beachcheck.place";
 const ALERTS_KEY = "beachcheck.alerts"; // { beachId: { name, level, parking, push } }
 const VOTES_KEY = "beachcheck.votes"; // { reportId: "up"|"down" } votes from this device
 const MINE_KEY = "beachcheck.mine"; // ids of reports sent from this device
-const ALERTED_KEY = "beachcheck.alerted"; // { beachId: time of the last alert this page showed }
+const ALERTED_KEY = "beachcheck.alerted";
+const REPORTER_KEY = "beachcheck.reporter"; // this device's private reporter id, for points // { beachId: time of the last alert this page showed }
 const BUSY = 3.5; // the forecast counts as "busy" from here
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
@@ -531,6 +532,72 @@ async function castVote(beach, report, vote, box) {
   }
 }
 
+// --- Reporter points ---------------------------------------------------------------
+
+// This device's private reporter id (made on first use). Only the server sees it; the board shows names.
+function reporterId() {
+  let id = load_(REPORTER_KEY);
+  if (typeof id !== "string" || !REPORTER_RE.test(id)) {
+    id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
+    save_(REPORTER_KEY, id);
+  }
+  return id;
+}
+
+// "Top reporters this week", and how you're doing. Hidden until reports are shared.
+async function refreshLeaders() {
+  if (demo) return;
+  const box = $("leaders");
+  const me = load_(REPORTER_KEY);
+  let board;
+  try {
+    board = await getJson(`api/leaders${typeof me === "string" && REPORTER_RE.test(me) ? `?me=${me}` : ""}`);
+  } catch {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const list = box.querySelector(".board");
+  list.replaceChildren(...board.top.map((row) => {
+    const li = el("li", null, row.you ? "mine" : "");
+    li.append(el("strong", row.name), document.createTextNode(` · ${row.points} points · ${row.reports} report${row.reports === 1 ? "" : "s"}${row.you ? " (you)" : ""}`));
+    return li;
+  }));
+  if (!board.top.length) list.append(el("li", "No reports yet this week. Send one to top the board!", "empty"));
+  const you = box.querySelector(".my-points");
+  you.textContent = board.me && board.me.points
+    ? `You (${board.me.name}): ${board.me.points} points this week, #${board.me.rank}. ${board.me.total} points all time.`
+    : "Report from the beach to earn points.";
+  const input = $("name-form").elements.name;
+  if (board.me && board.me.named && document.activeElement !== input) input.value = board.me.name;
+}
+
+$("name-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("name-form").querySelector(".name-msg");
+  let name;
+  try {
+    name = cleanName($("name-form").elements.name.value);
+  } catch (err) {
+    msg.textContent = err.message;
+    return;
+  }
+  msg.textContent = "Saving…";
+  try {
+    const res = await fetch("api/leaders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reporter: reporterId(), name }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || "Couldn't save your name.");
+    msg.textContent = "Saved.";
+    refreshLeaders();
+  } catch (err) {
+    msg.textContent = err.message;
+  }
+});
+
 // --- Alerts ------------------------------------------------------------------
 
 function saveAlerts() {
@@ -873,6 +940,7 @@ function buildReportForm(node, beach, open) {
         parking: parking && parking.value,
         note: form.elements.note.value.trim(),
         photo,
+        reporter: reporterId(),
         slot: slotKey(new Date()),
       });
       state.shared = shared;
@@ -882,7 +950,8 @@ function buildReportForm(node, beach, open) {
       }
       form.hidden = true;
       await refreshReports();
-      setStatus(`Thanks! Your report for ${beach.name} is ${shared ? "live for everyone" : "saved on this device"}.`);
+      setStatus(`Thanks! Your report for ${beach.name} is ${shared ? `live for everyone. +${POINTS.report} points` : "saved on this device"}.`);
+      if (shared) refreshLeaders();
     } catch (err) {
       msg.textContent = err.message;
     } finally {
@@ -1195,8 +1264,11 @@ setInterval(() => {
   if (document.visibilityState === "visible" && !reporting && state.center) {
     refreshReports().then(() => setStatus(beachesStatus(Number($("radius").value), state.center))).catch(() => {});
     refreshMeters();
+    refreshLeaders();
   }
 }, REFRESH_MS);
+
+refreshLeaders();
 
 // Receives alert pushes (sw.js). Pages work the same without it.
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

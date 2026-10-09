@@ -76,6 +76,10 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   JPEG of at most 1280 px and 250 KB before sending; redrawing it also strips its metadata, including
   where it was taken. Photos are kept for 6 hours like the reports, and a report flagged by votes
   stops serving its photo. Without the shared store, only the newest photo is kept on the device.
+- **Reporter points** (`js/points.js`, `api/leaders.js`): each device gets a private random reporter
+  id (sent with reports, never shown). +10 points per report, +2 per upvote it gets, -2 per downvote.
+  "Top reporters this week" shows the top 10 by nickname (or "Beachgoer" plus four characters derived
+  from the id) and your own rank; boards start each Monday (UTC) and lifetime totals are kept too.
 - **Estimates** (`js/crowd.js`): typical hourly pattern × weekend boost × season (flipped south of
   the equator) × weather, blended with the beach's own past reports once there are at least 3.
 - **Directions**: opens Google Maps driving directions to the beach.
@@ -128,4 +132,4 @@ node --test tests/*.test.js   # run the tests
 4. [x] Favorites and a "my beaches" view, filters, share links, plan up to a week ahead
 5. [x] Photos with reports, and up/down votes on reports to weed out bad ones
 6. [x] Tides, water quality and surf conditions
-7. [ ] Accounts and reporter reputation
+7. [x] Reporter points and a weekly leaderboard (no accounts needed)

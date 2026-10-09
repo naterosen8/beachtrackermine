@@ -86,4 +86,18 @@ async function sendPush(sub, payload, keys) {
   }
 }
 
-module.exports = { store, clientIp, visitorKey, readBody, pushKeys, sendPush, REPORT_ID_RE, newReportId, parseVotes, parsePhoto };
+// Adds points to a reporter's weekly and lifetime totals (Redis commands to run in a pipeline).
+const BOARD_KEEP_SECONDS = 15 * 24 * 60 * 60;
+function awardPoints(reporter, points, { report = false, now = Date.now() } = {}) {
+  const { weekKey } = require("../js/points.js");
+  const week = weekKey(now);
+  const cmds = [
+    ["ZINCRBY", `board:${week}`, points, reporter],
+    ["EXPIRE", `board:${week}`, BOARD_KEEP_SECONDS],
+    ["ZINCRBY", "board:all", points, reporter],
+  ];
+  if (report) cmds.push(["ZINCRBY", `reports:${week}`, 1, reporter], ["EXPIRE", `reports:${week}`, BOARD_KEEP_SECONDS]);
+  return cmds;
+}
+
+module.exports = { awardPoints, store, clientIp, visitorKey, readBody, pushKeys, sendPush, REPORT_ID_RE, newReportId, parseVotes, parsePhoto };

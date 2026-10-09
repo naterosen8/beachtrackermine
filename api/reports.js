@@ -1,13 +1,15 @@
 // Vercel serverless function for beachgoer reports, stored in Upstash Redis (or Vercel KV).
 //   GET  /api/reports?ids=osm:way/1,osm:node/2  -> { reports: { id: [report] }, history: { id: { slot: { sum, count } } } }
-//   POST /api/reports { beachId, crowd: 1..5, parking?, note?, photo?, slot: "we:14" } -> { ok: true, report }
+//   POST /api/reports { beachId, crowd: 1..5, parking?, note?, photo?, reporter?, slot: "we:14" } -> { ok: true, report }
+// With a reporter id, the report earns points on the weekly board (api/leaders.js).
 // A photo (base64 JPEG) is kept as long as the report and served by api/photo.js.
 // Each report has an id that beachgoers vote on (api/votes.js); GET adds its { up, down } counts.
 // Recent reports expire after a few hours; per-slot totals are kept so we can learn each beach's patterns.
 // After each report, anyone watching that beach (api/alerts.js) gets a push if it's now busy.
 // Without a store configured it answers 503, and the site falls back to saving reports on the device.
 
-const { store, clientIp, visitorKey, readBody, pushKeys, sendPush, newReportId, parseVotes, parsePhoto } = require("./_store.js");
+const { REPORTER_RE, POINTS } = require("../js/points.js");
+const { awardPoints, store, clientIp, visitorKey, readBody, pushKeys, sendPush, newReportId, parseVotes, parsePhoto } = require("./_store.js");
 const { liveStatus } = require("../js/crowd.js");
 const { alertReason, alertMessage, ALERT_COOLDOWN_MS } = require("../js/alerts.js");
 
@@ -30,11 +32,12 @@ function parseReport(body, now = Date.now(), id = newReportId()) {
   if (typeof b.slot !== "string" || !SLOT_RE.test(b.slot)) throw new Error("Missing time slot");
   const note = typeof b.note === "string" ? b.note.replace(/\s+/g, " ").trim().slice(0, 140) : "";
   const photo = parsePhoto(b.photo);
+  const reporter = typeof b.reporter === "string" && REPORTER_RE.test(b.reporter) ? b.reporter : null;
   const report = { id, time: now, crowd };
   if (b.parking) report.parking = b.parking;
   if (note) report.note = note;
   if (photo) report.photo = true;
-  return { beachId: b.beachId, slot: b.slot, report, photo };
+  return { beachId: b.beachId, slot: b.slot, report, photo, reporter };
 }
 
 // Turns HGETALL's flat [field, value, ...] list of "we:14:sum"/"we:14:n" into { "we:14": { sum, count } }.
@@ -116,7 +119,7 @@ async function handler(req, res) {
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
-      const { beachId, slot, report, photo } = parsed;
+      const { beachId, slot, report, photo, reporter } = parsed;
       const [fresh] = await run([["SET", `rl:${clientIp(req)}:${beachId}`, "1", "NX", "EX", RATE_LIMIT_SECONDS]]);
       if (fresh !== "OK") return res.status(429).json({ error: "You reported this beach a few minutes ago. Thanks!" });
       await run([
@@ -127,6 +130,8 @@ async function handler(req, res) {
         ["HINCRBY", `hist:${beachId}`, `${slot}:n`, 1],
         ["SET", `by:${report.id}`, visitorKey(req), "EX", KEEP_SECONDS], // so nobody votes on their own report
         ...(photo ? [["SET", `photo:${report.id}`, photo, "EX", KEEP_SECONDS]] : []),
+        // Who sent it (their private reporter id), so votes on it can add to their points.
+        ...(reporter ? [["SET", `rep:${report.id}`, reporter, "EX", KEEP_SECONDS], ...awardPoints(reporter, POINTS.report, { report: true })] : []),
       ]);
       const keys = pushKeys(req);
       if (keys) {

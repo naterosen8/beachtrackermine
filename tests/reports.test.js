@@ -28,7 +28,7 @@ function fakeStore(t, answer) {
 
 test("parseReport accepts a good report and trims the note", () => {
   const r = parseReport({ beachId: "osm:way/123", crowd: 4, parking: "some", note: "  lot   full ", slot: "we:14" }, 1000, "abcdef0123");
-  assert.deepStrictEqual(r, { beachId: "osm:way/123", slot: "we:14", report: { id: "abcdef0123", time: 1000, crowd: 4, parking: "some", note: "lot full" }, photo: null });
+  assert.deepStrictEqual(r, { beachId: "osm:way/123", slot: "we:14", report: { id: "abcdef0123", time: 1000, crowd: 4, parking: "some", note: "lot full" }, photo: null, reporter: null });
   assert.match(parseReport({ beachId: "osm:way/1", crowd: 1, slot: "wd:9" }).report.id, /^[a-f0-9]{10}$/);
 });
 
@@ -284,4 +284,78 @@ test("photos are served until they expire or the report is flagged", async (t) =
   assert.strictEqual((await get("../etc")).statusCode, 400);
   votes = ["abcdef0123:down", "3"];
   assert.strictEqual((await get("abcdef0123")).statusCode, 410);
+});
+
+// --- Points and the board ----------------------------------------------------
+
+const leadersHandler = require("../api/leaders.js");
+const { weekKey } = require("../js/points.js");
+const ME = "0123456789abcdef";
+
+test("a report with a reporter id earns 10 points and remembers who sent it", async (t) => {
+  const calls = fakeStore(t, (c) => (c[0] === "SET" ? "OK" : 1));
+  const res = fakeRes();
+  await handler({ method: "POST", headers: {}, body: { beachId: "osm:way/1", crowd: 3, slot: "we:14", reporter: ME } }, res);
+  assert.strictEqual(res.statusCode, 200);
+  const cmds = calls[1];
+  const week = weekKey();
+  assert.deepStrictEqual(cmds.find((c) => String(c[1]).startsWith("rep:")), ["SET", `rep:${res.body.report.id}`, ME, "EX", 6 * 60 * 60]);
+  assert.deepStrictEqual(cmds.filter((c) => c[0] === "ZINCRBY"), [
+    ["ZINCRBY", `board:${week}`, 10, ME],
+    ["ZINCRBY", "board:all", 10, ME],
+    ["ZINCRBY", `reports:${week}`, 1, ME],
+  ]);
+  assert.ok(!JSON.stringify(JSON.parse(cmds[0][2])).includes(ME)); // the stored report never carries the id
+});
+
+test("votes move the reporter's points", async (t) => {
+  const calls = fakeStore(t, (c) => {
+    if (c[0] === "INCR") return 1;
+    if (c[0] === "LRANGE") return [JSON.stringify({ id: "abcdef0123", time: Date.now(), crowd: 4 })];
+    if (c[0] === "GET") return c[1].startsWith("rep:") ? ME : "someone-else";
+    if (c[0] === "HGETALL") return [];
+    return "OK";
+  });
+  const res = fakeRes();
+  await votesHandler(voteReq({ beachId: "osm:way/1", reportId: "abcdef0123", vote: "down" }), res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.deepStrictEqual(calls[calls.length - 1].filter((c) => c[0] === "ZINCRBY"), [
+    ["ZINCRBY", `board:${weekKey()}`, -2, ME],
+    ["ZINCRBY", "board:all", -2, ME],
+  ]);
+});
+
+test("the board shows names and points, never reporter ids", async (t) => {
+  const OTHER = "fedcba9876543210";
+  fakeStore(t, (c) => {
+    if (c[0] === "ZREVRANGE") return [OTHER, "34", ME, "22"];
+    if (c[0] === "HGET") return c[2] === OTHER ? "Sandy Toes" : null;
+    if (c[0] === "ZSCORE") return c[1].startsWith("reports:") ? "3" : c[1] === "board:all" ? "120" : "22";
+    if (c[0] === "ZREVRANK") return 1;
+    return null;
+  });
+  const res = fakeRes();
+  await leadersHandler({ method: "GET", query: { me: ME }, headers: {} }, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.deepStrictEqual(res.body.top, [
+    { name: "Sandy Toes", points: 34, reports: 3 },
+    { name: leadersHandler.defaultName(ME), points: 22, reports: 3, you: true },
+  ]);
+  assert.deepStrictEqual(res.body.me, { name: leadersHandler.defaultName(ME), named: false, points: 22, reports: 3, rank: 2, total: 120 });
+  assert.match(leadersHandler.defaultName(ME), /^Beachgoer [0-9A-F]{4}$/);
+  assert.ok(!JSON.stringify(res.body).includes(ME) && !JSON.stringify(res.body).includes(OTHER));
+});
+
+test("nicknames are checked and rate limited", async (t) => {
+  const calls = fakeStore(t, (c) => (c[0] === "INCR" ? 1 : "OK"));
+  const ok = fakeRes();
+  await leadersHandler({ method: "POST", headers: {}, body: { reporter: ME, name: " Sandy  Toes " } }, ok);
+  assert.deepStrictEqual(ok.body, { ok: true, name: "Sandy Toes" });
+  assert.deepStrictEqual(calls[calls.length - 1], [["HSET", "names", ME, "Sandy Toes"]]);
+  const bad = fakeRes();
+  await leadersHandler({ method: "POST", headers: {}, body: { reporter: ME, name: "<b>" } }, bad);
+  assert.strictEqual(bad.statusCode, 400);
+  const noId = fakeRes();
+  await leadersHandler({ method: "POST", headers: {}, body: { reporter: "x", name: "Sandy" } }, noId);
+  assert.strictEqual(noId.statusCode, 400);
 });
