@@ -12,6 +12,8 @@ const ALERTS_KEY = "beachcheck.alerts"; // { beachId: { name, level, parking, pu
 const VOTES_KEY = "beachcheck.votes"; // { reportId: "up"|"down" } votes from this device
 const MINE_KEY = "beachcheck.mine"; // ids of reports sent from this device
 const ALERTED_KEY = "beachcheck.alerted";
+const FAV_INFO_KEY = "beachcheck.favinfo"; // { beachId: { id, name, lat, lon, waterSites? } } for the morning summary
+const MORNING_KEY = "beachcheck.morning"; // true once the morning summary is on
 const REPORTER_KEY = "beachcheck.reporter"; // this device's private reporter id, for points // { beachId: time of the last alert this page showed }
 const BUSY = 3.5; // the forecast counts as "busy" from here
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -30,6 +32,7 @@ const state = {
   amenities: {}, // OpenStreetMap amenities for beaches without a hand-checked list
   updated: null, // when live reports were last fetched
   favorites: new Set(load_(FAVORITES_KEY) || []),
+  favInfo: load_(FAV_INFO_KEY) || {},
   alerts: load_(ALERTS_KEY) || {},
   myVotes: load_(VOTES_KEY) || {},
   mine: new Set(load_(MINE_KEY) || []),
@@ -156,7 +159,112 @@ function toggleFavorite(id) {
   else state.favorites.add(id);
   save_(FAVORITES_KEY, [...state.favorites]);
   render();
+  syncMorning();
 }
+
+// What the morning summary needs about each starred beach, kept for beaches seen on the list.
+function rememberFavorites() {
+  let changed = false;
+  for (const b of state.beaches) {
+    if (!state.favorites.has(b.id)) continue;
+    const info = { id: b.id, name: b.name, lat: b.lat, lon: b.lon };
+    if (b.waterSites) info.waterSites = b.waterSites;
+    if (JSON.stringify(state.favInfo[b.id]) !== JSON.stringify(info)) {
+      state.favInfo[b.id] = info;
+      changed = true;
+    }
+  }
+  for (const id of Object.keys(state.favInfo)) {
+    if (!state.favorites.has(id)) {
+      delete state.favInfo[id];
+      changed = true;
+    }
+  }
+  if (changed) save_(FAV_INFO_KEY, state.favInfo);
+}
+
+const starredBeaches = () => [...state.favorites].map((id) => state.favInfo[id]).filter(Boolean).slice(0, 10);
+
+// Signs up for (or updates) the morning summary of the starred beaches. `quiet` skips the first push.
+async function sendMorning(quiet) {
+  const sub = await pushSubscription();
+  if (!sub) throw new Error(demo ? "Morning summaries need the real site." : "Morning summaries aren't set up on this site yet.");
+  const res = await fetch("api/morning", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      subscription: sub.toJSON(),
+      beaches: starredBeaches(),
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      link: "/",
+      quiet,
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error === "not-configured" ? "Morning summaries aren't set up on this site yet." : json.error || "Couldn't turn on the morning summary.");
+  return json;
+}
+
+async function stopMorning() {
+  const reg = "serviceWorker" in navigator && (await navigator.serviceWorker.getRegistration());
+  const sub = reg && (await reg.pushManager.getSubscription());
+  if (sub) {
+    await fetch("api/morning", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    }).catch(() => {});
+  }
+}
+
+// After the starred beaches change, update the summary quietly (or stop it when none are left).
+let morningTimer = null;
+function syncMorning() {
+  if (!load_(MORNING_KEY)) return;
+  clearTimeout(morningTimer);
+  morningTimer = setTimeout(() => {
+    rememberFavorites();
+    if (!starredBeaches().length) {
+      save_(MORNING_KEY, false);
+      stopMorning();
+      showMorning();
+      return;
+    }
+    sendMorning(true).catch(() => {});
+  }, 1500);
+}
+
+function showMorning() {
+  const on = !!load_(MORNING_KEY);
+  const button = $("morning-toggle");
+  button.textContent = `☀️ Morning summary: ${on ? "on" : "off"}`;
+  button.setAttribute("aria-pressed", String(on));
+  button.classList.toggle("on", on);
+}
+
+$("morning-toggle").addEventListener("click", async () => {
+  const button = $("morning-toggle");
+  const msg = $("morning-msg");
+  button.disabled = true;
+  try {
+    if (load_(MORNING_KEY)) {
+      save_(MORNING_KEY, false);
+      await stopMorning();
+      msg.textContent = "Morning summary off.";
+    } else {
+      rememberFavorites();
+      msg.textContent = "Turning on…";
+      const { preview } = await sendMorning(false);
+      save_(MORNING_KEY, true);
+      msg.textContent = `On. Each morning around 8 you'll get a summary of your starred beaches. Today: ${preview.body.split("\n")[0]}`;
+    }
+  } catch (err) {
+    msg.textContent = err.message;
+  } finally {
+    button.disabled = false;
+    showMorning();
+  }
+});
 
 // Everything we know about one beach for the chosen arrival time.
 function describe(beach, when) {
@@ -268,6 +376,8 @@ function render() {
 // "Your beaches today": for each starred beach on the list, what beachgoers say now, or when
 // it's expected to be busy today.
 function headsUp() {
+  rememberFavorites();
+  showMorning();
   const mine = state.beaches.filter((b) => state.favorites.has(b.id));
   $("heads-up").hidden = !mine.length;
   if (!mine.length) return;
@@ -614,29 +724,36 @@ function beachLink(beach) {
   return `/?${url}`;
 }
 
-// Signs this browser up for pushes about one beach. Resolves true when pushes will arrive with
-// the site closed, false when alerts only work while the page is open; throws with a message
-// when this browser can't show notifications at all.
-async function enablePush(beach, prefs) {
+// This browser's push subscription for the given server key, asking permission first. Resolves
+// null when the site can't push (no push keys set up, or a browser without web push); throws with a
+// message when this browser can't show notifications at all.
+async function pushSubscription() {
   if (!("Notification" in window)) {
     throw new Error(isIOS
-      ? "On iPhone, add Beach Check to your Home Screen first (Share → Add to Home Screen), then open it from there and turn alerts on."
+      ? "On iPhone, add Beach Check to your Home Screen first (Share → Add to Home Screen), then open it from there and turn this on."
       : "This browser can't show notifications.");
   }
   const permission = await Notification.requestPermission();
   if (permission !== "granted") throw new Error("Notifications are blocked for this site. Allow them in your browser settings, then try again.");
-  if (demo || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  if (demo || !("serviceWorker" in navigator) || !("PushManager" in window)) return null;
   let res;
   try {
     res = await fetch("api/alerts");
   } catch {
-    return false;
+    return null;
   }
-  if (!res.ok) return false;
+  if (!res.ok) return null;
   const { publicKey } = await res.json();
   const reg = await navigator.serviceWorker.ready;
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToBytes(publicKey) });
+  return (await reg.pushManager.getSubscription()) ||
+    reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToBytes(publicKey) });
+}
+
+// Signs this browser up for pushes about one beach. Resolves true when pushes will arrive with
+// the site closed, false when alerts only work while the page is open.
+async function enablePush(beach, prefs) {
+  const sub = await pushSubscription();
+  if (!sub) return false;
   const saved = await fetch("api/alerts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -706,6 +823,7 @@ function buildAlertForm(node, beach, open) {
       saveAlerts();
       state.favorites.add(beach.id); // alerts are for your beaches
       save_(FAVORITES_KEY, [...state.favorites]);
+      syncMorning();
       form.hidden = true;
       render();
       setStatus(prefs.push

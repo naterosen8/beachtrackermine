@@ -36,11 +36,9 @@ function alertMessage(name, live, reason) {
   return { title, body: `${bits.join(" · ")}. Tap to see other beaches.` };
 }
 
-// Checks an alert sign-up sent to api/alerts; returns it cleaned or throws with a message.
-function parseAlertSignup(body) {
-  const b = body && typeof body === "object" ? body : {};
-  if (typeof b.beachId !== "string" || !ID_RE.test(b.beachId)) throw new Error("Unknown beach");
-  const sub = b.subscription || {};
+// A browser push subscription, checked: { endpoint, keys: { p256dh, auth } } at a real push service.
+function parseSubscription(input) {
+  const sub = input || {};
   let host;
   try {
     const url = new URL(sub.endpoint);
@@ -54,24 +52,33 @@ function parseAlertSignup(body) {
   for (const k of ["p256dh", "auth"]) {
     if (typeof keys[k] !== "string" || keys[k].length > 200 || !B64URL_RE.test(keys[k])) throw new Error("Bad subscription");
   }
+  return { endpoint: sub.endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } };
+}
+
+// A path on this site for a notification to open; anything else becomes "/".
+const sitePath = (link) => (typeof link === "string" && /^\/(?!\/)[^\s]{0,400}$/.test(link) ? link : "/");
+
+// Checks an alert sign-up sent to api/alerts; returns it cleaned or throws with a message.
+function parseAlertSignup(body) {
+  const b = body && typeof body === "object" ? body : {};
+  if (typeof b.beachId !== "string" || !ID_RE.test(b.beachId)) throw new Error("Unknown beach");
+  const sub = parseSubscription(b.subscription);
   const level = Number(b.level);
   if (!ALERT_LEVELS.includes(level)) throw new Error("Level must be 4 or 5");
   const name = typeof b.name === "string" ? b.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";
   if (!name) throw new Error("Missing beach name");
-  // Where the notification opens: a path on this site only.
-  const link = typeof b.link === "string" && /^\/(?!\/)[^\s]{0,400}$/.test(b.link) ? b.link : "/";
   return {
     beachId: b.beachId,
     alert: {
-      sub: { endpoint: sub.endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } },
+      sub,
       level,
       parking: !!b.parking,
       name,
-      link,
+      link: sitePath(b.link),
     },
   };
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { ALERT_LEVELS, ALERT_COOLDOWN_MS, alertReason, alertMessage, parseAlertSignup };
+  module.exports = { ID_RE, ALERT_LEVELS, ALERT_COOLDOWN_MS, alertReason, alertMessage, parseSubscription, sitePath, parseAlertSignup };
 }

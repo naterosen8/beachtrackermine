@@ -248,3 +248,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .name-form { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 8px 0; }
 .name-form label { display: grid; gap: 4px; font-size: 15px; flex: 1 1 200px; }
 .name-msg { font-size: 14px; color: var(--muted); }
+
+.heads-up .morning { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
+#morning-toggle { font-size: 15px; padding: 4px 12px; }
+#morning-toggle.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }

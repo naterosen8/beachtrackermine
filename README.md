@@ -97,6 +97,11 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   On iPhone, web notifications need the site added to the Home Screen first (iOS 16.4+).
 - **Your beaches today**: for starred beaches, what beachgoers report now or when the forecast
   says they'll be busy.
+- **Morning summary** (`api/morning.js`, `api/_summary.js`): one notification each morning for your
+  starred beaches ("East Beach: busy 12–5 PM · 68°F · water quality warning"), from the same forecast,
+  weather and water testing as the page. Vercel Cron calls it daily at 15:00 UTC (`vercel.json`): 8 AM
+  Pacific in summer, 7 AM in winter; subscribers whose local time isn't 6–11 AM then are skipped.
+  Turning it on sends the first summary straight away; changing your starred beaches updates it.
 - **Links**: `?q=Goleta` searches a place; `?at=34.41,-119.83&near=Goleta&beach=<id>` opens a spot
   with one beach highlighted (what the Share button sends). The site also remembers the last place
   you looked at.
@@ -123,6 +128,8 @@ node --test tests/*.test.js   # run the tests
    and add them as environment variables `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (optionally
    `VAPID_SUBJECT`, a `mailto:` address or the site's URL). Without them, alerts only work while
    the page is open.
+4. For the morning summary, add a `CRON_SECRET` environment variable (any long random text). Vercel
+   sends it with its daily cron call, and the summary refuses calls without it.
 
 ## Roadmap
 

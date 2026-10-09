@@ -142,7 +142,7 @@ function estimateCrowd({ date, lat, weather, history }) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    CROWD_LABELS, PARKING_LABELS, crowdLabel, distanceKm, driveMinutes, isWeekend, slotKey,
+    HOUR_MS, CROWD_LABELS, PARKING_LABELS, crowdLabel, distanceKm, driveMinutes, isWeekend, slotKey,
     liveStatus, recentReports, isFlagged, voteWeight, seasonFactor, weatherFactor, estimateCrowd,
   };
 }

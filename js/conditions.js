@@ -1,6 +1,9 @@
 // Beach conditions: tides, surf, water temperature, sunrise/sunset, and the crowd through the day.
 // Pure functions, no DOM, so it can be tested in Node.
 
+// crowd.js: globals in the page, required in Node (api/ and tests).
+const CROWD_FNS = typeof estimateCrowd === "function" ? { estimateCrowd, crowdLabel } : require("./crowd.js");
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_MS_C = 60 * 1000;
 const FIRST_HOUR = 6; // the hour-by-hour forecast covers 6 a.m. ...
@@ -52,7 +55,7 @@ function surfLabel(m) {
 function marineAt(hours, time) {
   if (!hours || !hours.length) return null;
   const best = hours.reduce((b, h) => (Math.abs(h.time - time) < Math.abs(b.time - time) ? h : b));
-  return Math.abs(best.time - time) <= 2 * HOUR_MS ? best : null;
+  return Math.abs(best.time - time) <= 2 * 60 * MIN_MS_C ? best : null;
 }
 
 // Sunrise and sunset (ms) on the local calendar day of `date` at { lat, lon }, from the
@@ -84,7 +87,7 @@ function dayForecast({ day, lat, weatherFor, history }) {
     const date = new Date(day);
     date.setHours(h, 0, 0, 0);
     const weather = weatherFor ? weatherFor(date.getTime()) : null;
-    hours.push({ hour: h, time: date.getTime(), crowd: estimateCrowd({ date, lat, weather, history }).crowd });
+    hours.push({ hour: h, time: date.getTime(), crowd: CROWD_FNS.estimateCrowd({ date, lat, weather, history }).crowd });
   }
   return hours;
 }
@@ -103,7 +106,7 @@ function daySummary(hours) {
   const levels = hours.map((h) => h.crowd);
   const max = Math.max(...levels);
   const min = Math.min(...levels);
-  if (max - min < 0.5) return `About the same all day: ${crowdLabel((max + min) / 2).toLowerCase()}`;
+  if (max - min < 0.5) return `About the same all day: ${CROWD_FNS.crowdLabel((max + min) / 2).toLowerCase()}`;
   const peak = hours.filter((h) => h.crowd >= max - 0.25);
   const peakText = peak.length > 1
     ? `Busiest ${rangeText(peak[0].hour, peak[peak.length - 1].hour + 1)}`
@@ -142,5 +145,5 @@ function busyFrom(day, now = Date.now(), busy = 3.5) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { trafficFactor, leaveTime, busyFrom, tideTurns, tideAt, surfLabel, marineAt, sunTimes, dayForecast, daySummary, hourText, FIRST_HOUR, LAST_HOUR };
+  module.exports = { rangeText, trafficFactor, leaveTime, busyFrom, tideTurns, tideAt, surfLabel, marineAt, sunTimes, dayForecast, daySummary, hourText, FIRST_HOUR, LAST_HOUR };
 }
