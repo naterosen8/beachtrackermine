@@ -47,6 +47,8 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   and period, sea surface temperature and sea level, for every beach in one request. Tide highs and
   lows are the turning points of the modelled sea level; only their times are shown, since the model
   measures from mean sea level rather than the tide-table zero.
+- **Live cams**: hand-checked camera links for Santa Barbara beaches: the SkylineWebcams cam over
+  Stearns Wharf and the harbor, and Surfline's Leadbetter Point, Campus Point and Carpinteria cams.
 - **Sunrise and sunset**: worked out on the device from the beach's position and date.
 - **Hour by hour**: each beach shows the estimated crowd from 6 AM to 8 PM on the chosen day, with
   when it's busiest and quieter. Tap an hour to plan for it.

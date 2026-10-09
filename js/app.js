@@ -346,6 +346,7 @@ function card(v, reportOpen, when, alertOpen) {
   if (beach.noDogsOnBeach) facts.append(el("li", "No dogs on the beach"));
   if (beach.dogs === "yes" || beach.dogs === "leashed") facts.append(el("li", "Dogs allowed"));
 
+  if (beach.cams && beach.cams.length) facts.append(camLine(beach.cams));
   if (beach.curated) node.querySelector(".facts").after(lotList(beach));
 
   const notes = node.querySelector(".notes");
@@ -552,6 +553,20 @@ async function shareBeach(beach, button) {
     if (err && err.name === "AbortError") return; // closed the share sheet
     window.prompt("Copy this link:", url.href);
   }
+}
+
+// "Live cams: Leadbetter Point (Surfline) · Stearns Wharf & harbor (SkylineWebcams)"
+function camLine(cams) {
+  const li = el("li", "Live cams: ");
+  cams.forEach((cam, i) => {
+    if (i) li.append(document.createTextNode(" · "));
+    const a = el("a", cam.name);
+    a.href = cam.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    li.append(a, document.createTextNode(` (${cam.source})`));
+  });
+  return li;
 }
 
 // Every parking option for a hand-checked beach, each with a link to find it on a map.

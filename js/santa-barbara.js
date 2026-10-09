@@ -12,9 +12,18 @@ const CITY_RATE = "$3.50/hr, $20/day max";
 const CITY_HOURS = "8 a.m.–10 p.m.";
 const COUNTY_HOURS = "8 a.m.–sunset";
 
+// Live cameras that show the beach (checked October 2026). Surfline cams are free to watch with ads;
+// the Skyline cam looks over Stearns Wharf, West Beach and the harbor entrance.
+const CAMS = {
+  wharf: { name: "Stearns Wharf & harbor", source: "SkylineWebcams", url: "https://www.skylinewebcams.com/en/webcam/united-states/california/santa-barbara/santa-barbara.html" },
+  leadbetter: { name: "Leadbetter Point", source: "Surfline", url: "https://www.surfline.com/surf-report/leadbetter-point/5842041f4e65fad6a7708960" },
+  campus: { name: "Campus Point", source: "Surfline", url: "https://www.surfline.com/surf-report/campus-point/5842041f4e65fad6a770896c" },
+  carpinteria: { name: "Carpinteria State Beach", source: "Surfline", url: "https://www.surfline.com/surf-report/carpinteria-state-beach/5842041f4e65fad6a770896e" },
+};
+
 const SB_BEACHES = [
   {
-    id: "osm:way/446745489", name: "Leadbetter Beach", lat: 34.4009, lon: -119.7006,
+    id: "osm:way/446745489", name: "Leadbetter Beach", lat: 34.4009, lon: -119.7006, cams: [CAMS.leadbetter, CAMS.wharf],
     lots: [
       { name: "Leadbetter Lot", spaces: 268, fee: CITY_RATE, hours: CITY_HOURS },
       { name: "Harbor West Lot", spaces: 199, fee: CITY_RATE, hours: CITY_HOURS },
@@ -22,7 +31,7 @@ const SB_BEACHES = [
     ],
   },
   {
-    id: "osm:way/1050207589", name: "West Beach", lat: 34.4096, lon: -119.6909,
+    id: "osm:way/1050207589", name: "West Beach", lat: 34.4096, lon: -119.6909, cams: [CAMS.wharf],
     summary: "2 lots · $3.50/hr (Stearns Wharf: 90 min free)",
     lots: [
       { name: "Harbor Main Lot", fee: "$3.50/hr, $20 per 24 hrs", hours: "open 24 hours, staffed kiosk" },
@@ -30,7 +39,7 @@ const SB_BEACHES = [
     ],
   },
   {
-    id: "osm:way/40117616", name: "East Beach", lat: 34.4145, lon: -119.6815,
+    id: "osm:way/40117616", name: "East Beach", lat: 34.4145, lon: -119.6815, cams: [CAMS.wharf],
     lots: [
       { name: "Garden Street Lot", spaces: 207, fee: CITY_RATE, hours: CITY_HOURS },
       { name: "Palm Park Lot", spaces: 267, fee: CITY_RATE, hours: CITY_HOURS },
@@ -48,11 +57,11 @@ const SB_BEACHES = [
     lots: [{ name: "Street parking along Channel Drive", fee: "free", street: true }],
   },
   {
-    id: "osm:way/44580911", name: "Goleta Beach", lat: 34.4166, lon: -119.8328, lifeguards: "seasonal",
+    id: "osm:way/44580911", name: "Goleta Beach", lat: 34.4166, lon: -119.8328, lifeguards: "seasonal", cams: [CAMS.campus],
     lots: [{ name: "Goleta Beach Park lot (county)", fee: "free", hours: COUNTY_HOURS }],
   },
   {
-    id: "osm:way/446746847", name: "Isla Vista Beach", lat: 34.4071, lon: -119.8499,
+    id: "osm:way/446746847", name: "Isla Vista Beach", lat: 34.4071, lon: -119.8499, cams: [CAMS.campus],
     lots: [{ name: "Street parking in Isla Vista (no beach lot)", fee: "free", street: true }],
   },
   {
@@ -61,7 +70,7 @@ const SB_BEACHES = [
   },
   {
     id: "osm:way/165156074", name: "Carpinteria State Beach", lat: 34.3913, lon: -119.5215,
-    lifeguards: "yes", noDogsOnBeach: true,
+    lifeguards: "yes", noDogsOnBeach: true, cams: [CAMS.carpinteria],
     summary: "$10 state lot, or free city lots on Linden Ave",
     lots: [
       { name: "State beach day-use parking", fee: "$10 per vehicle", hours: "sunrise–sunset" },

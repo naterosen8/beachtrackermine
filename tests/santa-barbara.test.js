@@ -45,3 +45,15 @@ test("map beaches are added only when they're new, public and not duplicates", (
   assert.deepStrictEqual(added, ["More Mesa Beach"]); // the nude beach is 580 m along the same strip
   assert.strictEqual(merged.filter((b) => b.name === "East Beach").length, 1);
 });
+
+test("webcams are real links with a name and source", () => {
+  const { SB_BEACHES } = require("../js/santa-barbara.js");
+  const withCams = SB_BEACHES.filter((b) => b.cams);
+  assert.ok(withCams.length >= 5);
+  for (const b of withCams) {
+    for (const cam of b.cams) {
+      assert.match(cam.url, /^https:\/\/www\.(surfline|skylinewebcams)\.com\//, b.name);
+      assert.ok(cam.name && cam.source, b.name);
+    }
+  }
+});
