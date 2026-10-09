@@ -31,6 +31,19 @@ const visitorKey = (req) => require("crypto").createHash("sha256").update(`beach
 const REPORT_ID_RE = /^[a-f0-9]{10}$/;
 const newReportId = () => require("crypto").randomBytes(5).toString("hex");
 
+// A report photo: base64 JPEG (re-encoded and shrunk by the page, so no location data) of at most
+// MAX_PHOTO_BYTES. Returns the base64 text, null when there's no photo, or throws.
+const MAX_PHOTO_BYTES = 400 * 1024;
+function parsePhoto(photo) {
+  if (photo == null || photo === "") return null;
+  if (typeof photo !== "string" || photo.length > Math.ceil(MAX_PHOTO_BYTES / 3) * 4 + 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(photo)) {
+    throw new Error("Photo is too big or not a photo");
+  }
+  const bytes = Buffer.from(photo, "base64");
+  if (bytes.length > MAX_PHOTO_BYTES || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) throw new Error("Photo is too big or not a photo");
+  return photo;
+}
+
 // HGETALL of votes:<beachId> ("<reportId>:up" -> n) as { reportId: { up, down } }.
 function parseVotes(flat) {
   const votes = {};
@@ -73,4 +86,4 @@ async function sendPush(sub, payload, keys) {
   }
 }
 
-module.exports = { store, clientIp, visitorKey, readBody, pushKeys, sendPush, REPORT_ID_RE, newReportId, parseVotes };
+module.exports = { store, clientIp, visitorKey, readBody, pushKeys, sendPush, REPORT_ID_RE, newReportId, parseVotes, parsePhoto };

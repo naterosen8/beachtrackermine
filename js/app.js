@@ -390,7 +390,8 @@ function reportList(node, beach) {
   box.hidden = false;
   box.open = state.openLists.has(beach.id) ? state.openLists.get(beach.id) : reports.length <= 3;
   box.addEventListener("toggle", () => state.openLists.set(beach.id, box.open));
-  box.querySelector("summary").textContent = `Recent reports (${reports.length})`;
+  const photos = reports.filter((r) => !isFlagged(r) && (r.photo || r.photoData)).length;
+  box.querySelector("summary").textContent = `Recent reports (${reports.length})${photos ? ` · ${photos} photo${photos > 1 ? "s" : ""}` : ""}`;
   box.querySelector("ul").replaceChildren(...reports.map((r) => reportItem(beach, r)));
 }
 
@@ -406,6 +407,20 @@ function reportItem(beach, r) {
   bits.push(ago(r.time));
   li.append(el("span", bits.join(" · "), "what"));
   if (r.note) li.append(el("span", `“${r.note}”`, "said"));
+  const photoUrl = r.photoData || (r.photo && r.id ? `api/photo?${new URLSearchParams({ beach: beach.id, id: r.id })}` : null);
+  if (photoUrl) {
+    const thumb = el("button", null, "thumb");
+    thumb.type = "button";
+    thumb.setAttribute("aria-label", "Open photo");
+    const img = el("img");
+    img.src = photoUrl;
+    img.alt = `Photo of ${beach.name}, ${ago(r.time)}`;
+    img.loading = "lazy";
+    img.addEventListener("error", () => thumb.remove()); // expired or flagged
+    thumb.append(img);
+    thumb.addEventListener("click", () => showPhoto(photoUrl, `${beach.name} · ${crowdLabel(r.crowd)} · ${ago(r.time)}`));
+    li.prepend(thumb);
+  }
   const votes = el("span", null, "votes");
   if (r.id && state.mine.has(r.id)) {
     votes.append(el("span", `Your report · 👍 ${r.up || 0} · 👎 ${r.down || 0}`, "fine"));
@@ -424,6 +439,53 @@ function reportItem(beach, r) {
   }
   li.append(votes);
   return li;
+}
+
+function showPhoto(url, caption) {
+  const view = $("photo-view");
+  view.querySelector("img").src = url;
+  view.querySelector("p").textContent = caption;
+  if (view.showModal) view.showModal();
+  else window.open(url, "_blank", "noopener");
+}
+
+const MAX_PHOTO_PX = 1280;
+const MAX_PHOTO_BYTES = 250 * 1024;
+
+// Shrinks a photo to a small JPEG and returns it as base64. Drawing it onto a canvas also drops
+// the file's hidden metadata, including where it was taken.
+async function shrinkPhoto(file) {
+  if (!/^image\//.test(file.type || "image/")) throw new Error("That file isn't a photo.");
+  let source;
+  try {
+    source = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    source = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Couldn't read that photo. Try a JPEG or PNG."));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  const width = source.width || source.naturalWidth;
+  const height = source.height || source.naturalHeight;
+  let scale = Math.min(1, MAX_PHOTO_PX / Math.max(width, height));
+  const canvas = document.createElement("canvas");
+  for (let tries = 0; tries < 4; tries++, scale *= 0.75) {
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.8, 0.65, 0.5]) {
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+      if (blob && blob.size <= MAX_PHOTO_BYTES) {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let text = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return btoa(text);
+      }
+    }
+  }
+  throw new Error("That photo is too big to send.");
 }
 
 async function castVote(beach, report, vote, box) {
@@ -730,6 +792,13 @@ function buildReportForm(node, beach, open) {
   });
 
   const msg = form.querySelector(".report-msg");
+  const preview = form.querySelector(".photo-preview");
+  form.elements.photo.addEventListener("change", () => {
+    const file = form.elements.photo.files[0];
+    preview.hidden = !file;
+    form.querySelector(".photo-note").hidden = !file;
+    if (file) preview.src = URL.createObjectURL(file);
+  });
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const crowd = form.querySelector(`input[name="crowd-${uid}"]:checked`);
@@ -745,12 +814,19 @@ function buildReportForm(node, beach, open) {
           throw new Error(`You look to be ${fmtDistance(distanceKm(here, beach))} away. Please report from the beach.`);
         }
       }
+      const file = form.elements.photo.files[0];
+      let photo;
+      if (file) {
+        msg.textContent = "Preparing photo…";
+        photo = await shrinkPhoto(file);
+      }
       msg.textContent = "Sending…";
       const { shared, id } = await sendReport({
         beachId: beach.id,
         crowd: Number(crowd.value),
         parking: parking && parking.value,
         note: form.elements.note.value.trim(),
+        photo,
         slot: slotKey(new Date()),
       });
       state.shared = shared;

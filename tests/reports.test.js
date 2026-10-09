@@ -28,7 +28,7 @@ function fakeStore(t, answer) {
 
 test("parseReport accepts a good report and trims the note", () => {
   const r = parseReport({ beachId: "osm:way/123", crowd: 4, parking: "some", note: "  lot   full ", slot: "we:14" }, 1000, "abcdef0123");
-  assert.deepStrictEqual(r, { beachId: "osm:way/123", slot: "we:14", report: { id: "abcdef0123", time: 1000, crowd: 4, parking: "some", note: "lot full" } });
+  assert.deepStrictEqual(r, { beachId: "osm:way/123", slot: "we:14", report: { id: "abcdef0123", time: 1000, crowd: 4, parking: "some", note: "lot full" }, photo: null });
   assert.match(parseReport({ beachId: "osm:way/1", crowd: 1, slot: "wd:9" }).report.id, /^[a-f0-9]{10}$/);
 });
 
@@ -239,4 +239,49 @@ test("votes are refused twice, on your own report, on expired reports and when b
     assert.strictEqual(res.statusCode, 400);
   }
   assert.strictEqual(calls.length, 0);
+});
+
+// --- Photos --------------------------------------------------------------
+
+const photoHandler = require("../api/photo.js");
+const { parsePhoto } = require("../api/_store.js");
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(100, 7)]).toString("base64");
+
+test("photos must be small JPEGs", () => {
+  assert.strictEqual(parsePhoto(undefined), null);
+  assert.strictEqual(parsePhoto(JPEG), JPEG);
+  assert.throws(() => parsePhoto(Buffer.from("<svg onload=alert(1)>").toString("base64")), /not a photo/);
+  assert.throws(() => parsePhoto(Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(500 * 1024)]).toString("base64")), /too big/);
+  assert.throws(() => parsePhoto("not base64!"), /not a photo/);
+  assert.throws(() => parsePhoto({}), /not a photo/);
+});
+
+test("a report with a photo stores it beside the report, for as long", async (t) => {
+  const calls = fakeStore(t, (c) => (c[0] === "SET" ? "OK" : 1));
+  const res = fakeRes();
+  await handler({ method: "POST", headers: {}, body: { beachId: "osm:way/1", crowd: 3, slot: "we:14", photo: JPEG } }, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.report.photo, true);
+  const set = calls[1].find((c) => String(c[1]).startsWith("photo:"));
+  assert.deepStrictEqual(set, ["SET", `photo:${res.body.report.id}`, JPEG, "EX", 6 * 60 * 60]);
+  assert.ok(!JSON.parse(calls[1][0][2]).photoData); // the report itself stays small
+});
+
+test("photos are served until they expire or the report is flagged", async (t) => {
+  let votes = [];
+  fakeStore(t, (c) => (c[0] === "GET" ? (c[1] === "photo:abcdef0123" ? JPEG : null) : votes));
+  const get = async (id) => {
+    const res = fakeRes();
+    res.send = function (b) { this.body = b; return this; };
+    await photoHandler({ method: "GET", query: { beach: "osm:way/1", id } }, res);
+    return res;
+  };
+  const ok = await get("abcdef0123");
+  assert.strictEqual(ok.statusCode, 200);
+  assert.strictEqual(ok.headers["Content-Type"], "image/jpeg");
+  assert.strictEqual(ok.body[0], 0xff);
+  assert.strictEqual((await get("0000000000")).statusCode, 404);
+  assert.strictEqual((await get("../etc")).statusCode, 400);
+  votes = ["abcdef0123:down", "3"];
+  assert.strictEqual((await get("abcdef0123")).statusCode, 410);
 });

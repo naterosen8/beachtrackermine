@@ -73,6 +73,12 @@
     <p class="fine">Beaches and parking from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors. Weather, waves, water temperature and tides from <a href="https://open-meteo.com/">Open-Meteo</a> (tides are modelled: check a tide table before tidepooling or walking around points). Ocean water testing from <a href="https://www.countyofsb.org/ch-ocean-water-monitoring-program">Santa Barbara County Environmental Health</a> (hotline 805-681-4949). Live street-meter occupancy in Los Angeles from <a href="https://data.lacity.org/">LADOT open data</a>. Crowd estimates are guesses: check live reports and conditions before you go, and swim near lifeguards.</p>
   </main>
 
+  <dialog id="photo-view" class="photo-view">
+    <form method="dialog"><button aria-label="Close photo">✕</button></form>
+    <img alt="Photo from a beachgoer">
+    <p class="fine"></p>
+  </dialog>
+
   <template id="beach-card">
     <li class="card">
       <div class="card-head">
@@ -126,6 +132,11 @@
         <label class="note-label">Anything else? <span class="fine">(optional)</span>
           <input name="note" maxlength="140" placeholder="e.g. lot on 5th St is full, rough surf">
         </label>
+        <label class="photo-label">Add a photo <span class="fine">(optional)</span>
+          <input name="photo" type="file" accept="image/*">
+        </label>
+        <img class="photo-preview" alt="Photo to send" hidden>
+        <p class="fine photo-note" hidden>Photos are public for 6 hours and location data is removed. Please avoid close-ups of people.</p>
         <div class="actions">
           <button type="submit" class="primary">Send report</button>
           <span class="report-msg" role="status"></span>

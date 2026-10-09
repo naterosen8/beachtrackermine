@@ -67,6 +67,10 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   vote per visitor per report, never on your own. Each net upvote adds a quarter to a report's
   weight in the live crowd (up to double); a net downvote halves it; 2+ downvotes outnumbering the
   upvotes hide it as flagged.
+- **Photos with reports** (`api/photo.js`): a report can include a photo. The page shrinks it to a
+  JPEG of at most 1280 px and 250 KB before sending; redrawing it also strips its metadata, including
+  where it was taken. Photos are kept for 6 hours like the reports, and a report flagged by votes
+  stops serving its photo. Without the shared store, only the newest photo is kept on the device.
 - **Estimates** (`js/crowd.js`): typical hourly pattern × weekend boost × season (flipped south of
   the equator) × weather, blended with the beach's own past reports once there are at least 3.
 - **Directions**: opens Google Maps driving directions to the beach.
@@ -112,6 +116,6 @@ node --test tests/*.test.js   # run the tests
 2. [x] Live beachgoer reports, with estimates that learn from past reports
 3. [x] Alerts: tell me when my favorite beach gets busy or parking fills up
 4. [x] Favorites and a "my beaches" view, filters, share links, plan up to a week ahead
-5. [ ] Photos with reports, and up/down votes on reports to weed out bad ones (votes done)
+5. [x] Photos with reports, and up/down votes on reports to weed out bad ones
 6. [x] Tides, water quality and surf conditions
 7. [ ] Accounts and reporter reputation
