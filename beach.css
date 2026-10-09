@@ -252,3 +252,6 @@ button:disabled { opacity: .6; cursor: wait; }
 .heads-up .morning { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
 #morning-toggle { font-size: 15px; padding: 4px 12px; }
 #morning-toggle.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+.plan label { flex-wrap: wrap; max-width: 100%; }
+.plan select { max-width: 100%; min-width: 0; }
