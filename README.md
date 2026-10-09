@@ -54,6 +54,11 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   Beaches under a warning drop down the best picks, and "No water warnings" hides them. After 0.1 in
   of rain in the last 72 hours (Open-Meteo, past 3 days) a rain advisory is shown. The state's
   BeachWatch data was checked too, but it lags months behind.
+- **Amenities** (`js/amenities.js`): restrooms, showers, drinking water, food, BBQ grills, fire rings,
+  picnic tables, playgrounds, volleyball and beach wheelchairs. Santa Barbara's are hand-checked
+  against the City's Parks & Recreation beach pages and the county parks' feature lists; elsewhere
+  they come from OpenStreetMap features within 400 m, in a separate small query after the beaches
+  show. Filters: restrooms, showers, food, fire rings.
 - **Live cams**: hand-checked camera links for Santa Barbara beaches: the SkylineWebcams cam over
   Stearns Wharf and the harbor, and Surfline's Leadbetter Point, Campus Point and Carpinteria cams.
 - **Sunrise and sunset**: worked out on the device from the beach's position and date.

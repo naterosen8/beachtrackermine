@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 global.distanceKm = require("../js/crowd.js").distanceKm;
+Object.assign(global, require("../js/amenities.js"));
 const { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode } = require("../js/data.js");
 
 test("parses beaches, merges duplicates and counts nearby parking", () => {
@@ -162,4 +163,25 @@ test("road drive times for every beach in one routing request", async () => {
   assert.strictEqual(asked, "https://router.project-osrm.org/table/v1/driving/-119.69000,34.41000;-119.70000,34.40000;-119.83000,34.42000;-119.40000,34.30000?sources=0&annotations=duration,distance");
   assert.deepStrictEqual(drives, { a: { minutes: 5, km: 2.2 }, b: { minutes: 19, km: 17.3 } });
   await assert.rejects(getDriveTimes({ lat: 0, lon: 0 }, [{ id: "a", lat: 1, lon: 1 }], async () => ({ code: "NoTable" })), /Routing failed/);
+});
+
+test("amenities come from one separate map query for beaches without a hand-checked list", async () => {
+  const { getAmenities } = require("../js/data.js");
+  const beaches = [
+    { id: "osm:way/1", lat: 33.8847, lon: -118.4109 },
+    { id: "sb", lat: 34.4, lon: -119.7, amenities: [{ key: "restrooms" }] }, // hand-checked: skipped
+  ];
+  let query;
+  const got = await getAmenities(beaches, async (url, opts) => {
+    query = new URLSearchParams(opts.body).get("data");
+    return { elements: [
+      { type: "node", lat: 33.8849, lon: -118.4108, tags: { amenity: "toilets" } },
+      { type: "way", center: { lat: 33.8850, lon: -118.4105 }, tags: { amenity: "restaurant", name: "Pier Grill" } },
+      { type: "node", lat: 33.8851, lon: -118.4100, tags: { sport: "beachvolleyball" } },
+    ] };
+  });
+  assert.match(query, /around:400,33\.88470,-118\.41090/);
+  assert.doesNotMatch(query, /34\.40000/);
+  assert.deepStrictEqual(got, { "osm:way/1": [{ key: "restrooms" }, { key: "food", note: "Pier Grill" }, { key: "volleyball" }] });
+  await assert.rejects(getAmenities(beaches, async () => ({ remark: "runtime error: Query timed out", elements: [] })), /Query timed out/);
 });

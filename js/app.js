@@ -26,6 +26,7 @@ const state = {
   marine: {}, // hourly waves, water temperature and tide by beach id
   water: [], // county water quality sampling sites
   drives: {}, // road drive times from the searched place, by beach id
+  amenities: {}, // OpenStreetMap amenities for beaches without a hand-checked list
   updated: null, // when live reports were last fetched
   favorites: new Set(load_(FAVORITES_KEY) || []),
   alerts: load_(ALERTS_KEY) || {},
@@ -127,7 +128,11 @@ function planFor(time) {
   render();
 }
 
-const FILTERS = ["f-fav", "f-guard", "f-dogs", "f-free", "f-water"];
+const FILTERS = ["f-fav", "f-guard", "f-dogs", "f-free", "f-water", "f-restrooms", "f-showers", "f-food", "f-firepits"];
+const AMENITY_FILTERS = { "f-restrooms": "restrooms", "f-showers": "showers", "f-food": "food", "f-firepits": "firepits" };
+
+// A beach's amenities: hand-checked, or from the map once they've loaded (null until then).
+const amenitiesOf = (b) => b.amenities || state.amenities[b.id] || null;
 
 // Beach features the filter chips look for.
 const hasLifeguards = (b) => b.lifeguard === "yes" || !!b.lifeguards;
@@ -141,7 +146,8 @@ function filtered(beaches) {
     (!$("f-guard").checked || hasLifeguards(b)) &&
     (!$("f-dogs").checked || dogFriendly(b)) &&
     (!$("f-free").checked || freeParking(b)) &&
-    (!$("f-water").checked || !waterWarning(b)));
+    (!$("f-water").checked || !waterWarning(b)) &&
+    Object.entries(AMENITY_FILTERS).every(([id, key]) => !$(id).checked || (amenitiesOf(b) || []).some((a) => a.key === key)));
 }
 
 function toggleFavorite(id) {
@@ -372,6 +378,12 @@ function card(v, reportOpen, when, alertOpen) {
   if (beach.noDogsOnBeach) facts.append(el("li", "No dogs on the beach"));
   if (beach.dogs === "yes" || beach.dogs === "leashed") facts.append(el("li", "Dogs allowed"));
 
+  const amenities = amenitiesOf(beach);
+  if (amenities) {
+    facts.append(el("li", amenities.length
+      ? `Amenities: ${amenityText(amenities)}${beach.amenities ? "" : " (from OpenStreetMap)"}`
+      : beach.amenities ? "No facilities: bring what you need" : "No amenities mapped nearby"));
+  }
   if (beach.cams && beach.cams.length) facts.append(camLine(beach.cams));
   if (beach.curated) node.querySelector(".facts").after(lotList(beach));
 
@@ -977,6 +989,20 @@ async function refreshMarine() {
   }
 }
 
+// Amenities from the map for beaches without a hand-checked list. Optional.
+async function refreshAmenities() {
+  const beaches = state.beaches;
+  if (demo || !beaches.some((b) => !b.amenities)) return;
+  try {
+    const amenities = await getAmenities(beaches);
+    if (beaches !== state.beaches) return;
+    state.amenities = amenities;
+    render();
+  } catch {
+    // leave the line out
+  }
+}
+
 // Road drive times from the searched place. Optional: straight-line estimates are used without them.
 async function refreshDrives() {
   const beaches = state.beaches;
@@ -1032,6 +1058,7 @@ async function load(center) {
   state.marine = {};
   state.water = [];
   state.drives = {};
+  state.amenities = {};
   rememberPlace(center);
   setStatus(`Finding beaches near ${center.label}…`);
   let radius = Number($("radius").value);
@@ -1066,6 +1093,7 @@ async function load(center) {
         refreshMarine();
         refreshWater();
         refreshDrives();
+        refreshAmenities();
         setStatus(beachesStatus(radius, center));
       })
       .catch(() => {}); // the hand-checked list is already showing
@@ -1110,6 +1138,7 @@ async function load(center) {
   refreshMarine();
   refreshWater();
   refreshDrives();
+  refreshAmenities();
   setStatus(beachesStatus(radius, center));
 }
 

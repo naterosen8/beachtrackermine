@@ -57,3 +57,14 @@ test("webcams are real links with a name and source", () => {
     }
   }
 });
+
+test("every hand-checked beach lists its amenities with known keys", () => {
+  const { SB_BEACHES } = require("../js/santa-barbara.js");
+  const { AMENITIES } = require("../js/amenities.js");
+  for (const b of SB_BEACHES) {
+    assert.ok(Array.isArray(b.amenities), b.name);
+    for (const a of b.amenities) assert.ok(AMENITIES[a.key], `${b.name}: ${a.key}`);
+  }
+  const east = SB_BEACHES.find((b) => b.name === "East Beach");
+  assert.ok(east.amenities.some((a) => a.key === "showers"));
+});

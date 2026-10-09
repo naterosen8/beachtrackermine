@@ -4,10 +4,10 @@
 const DEMO_CENTER = { lat: 33.93, lon: -118.43, label: "Los Angeles (sample)" };
 
 const DEMO_BEACHES = [
-  { id: "demo:santa-monica", name: "Santa Monica State Beach", lat: 34.0094, lon: -118.4973, parkingLots: 9, parkingSpaces: 2400, paidParking: true, lifeguard: "yes", surface: "sand" },
-  { id: "demo:venice", name: "Venice Beach", lat: 33.985, lon: -118.4729, parkingLots: 6, parkingSpaces: 1100, paidParking: true, lifeguard: "yes", surface: "sand" },
-  { id: "demo:dockweiler", name: "Dockweiler State Beach", lat: 33.9365, lon: -118.4366, parkingLots: 2, parkingSpaces: 600, paidParking: true, surface: "sand" },
-  { id: "demo:manhattan", name: "Manhattan Beach", lat: 33.8847, lon: -118.4109, parkingLots: 5, parkingSpaces: 900, paidParking: true, lifeguard: "yes", surface: "sand" },
+  { id: "demo:santa-monica", name: "Santa Monica State Beach", lat: 34.0094, lon: -118.4973, parkingLots: 9, parkingSpaces: 2400, paidParking: true, lifeguard: "yes", surface: "sand", amenities: [{ key: "restrooms" }, { key: "water" }, { key: "food", note: "Chez Jay, Mariasol" }, { key: "playground" }] },
+  { id: "demo:venice", name: "Venice Beach", lat: 33.985, lon: -118.4729, parkingLots: 6, parkingSpaces: 1100, paidParking: true, lifeguard: "yes", surface: "sand", amenities: [{ key: "restrooms" }, { key: "water" }, { key: "food" }, { key: "playground" }, { key: "volleyball" }] },
+  { id: "demo:dockweiler", name: "Dockweiler State Beach", lat: 33.9365, lon: -118.4366, parkingLots: 2, parkingSpaces: 600, paidParking: true, surface: "sand", amenities: [{ key: "restrooms" }, { key: "firepits" }, { key: "picnic" }] },
+  { id: "demo:manhattan", name: "Manhattan Beach", lat: 33.8847, lon: -118.4109, parkingLots: 5, parkingSpaces: 900, paidParking: true, lifeguard: "yes", surface: "sand", amenities: [{ key: "restrooms" }, { key: "showers" }, { key: "water" }, { key: "food", note: "Rock n' Fish" }, { key: "firepits" }, { key: "volleyball" }] },
   { id: "demo:hermosa", name: "Hermosa Beach", lat: 33.8622, lon: -118.4012, parkingLots: 4, parkingSpaces: 700, paidParking: true, surface: "sand" },
   { id: "demo:redondo", name: "Redondo Beach", lat: 33.8395, lon: -118.3923, parkingLots: 3, parkingSpaces: 1500, paidParking: true, lifeguard: "yes", surface: "sand" },
   { id: "demo:el-segundo", name: "El Segundo Beach", lat: 33.9128, lon: -118.4232, parkingLots: 0, parkingSpaces: 0, paidParking: false, surface: "sand" },

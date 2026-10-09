@@ -228,6 +228,39 @@ function parseMarine(beaches, results) {
   return out;
 }
 
+// Restrooms, showers, food... from OpenStreetMap near beaches that don't have a hand-checked list,
+// in a separate small query so it never slows down finding the beaches: { beachId: [{ key, note? }] }.
+const AMENITY_MAX_BEACHES = 25;
+async function getAmenities(beaches, fetchJson = getJson) {
+  const some = beaches.filter((b) => !b.amenities).slice(0, AMENITY_MAX_BEACHES);
+  if (!some.length) return {};
+  const r = Math.round(AMENITY_NEAR_KM * 1000);
+  const near = some.map((b) => `${r},${b.lat.toFixed(5)},${b.lon.toFixed(5)}`);
+  const query = `[out:json][timeout:20];
+(
+${near.map((a) => `  nwr["amenity"~"^(toilets|shower|drinking_water|restaurant|cafe|fast_food|ice_cream|bbq|picnic_table)$"](around:${a});
+  nwr["leisure"~"^(firepit|playground|picnic_table)$"](around:${a});
+  nwr["sport"="beachvolleyball"](around:${a});`).join("\n")}
+);
+out center tags 2000;`;
+  const failures = [];
+  for (const url of OVERPASS_URLS) {
+    try {
+      const json = await fetchJson(url, { method: "POST", body: new URLSearchParams({ data: query }), timeout: 25000 });
+      if (json.remark && /error/i.test(json.remark)) throw new Error(json.remark);
+      const features = (json.elements || []).map((e) => ({
+        lat: e.center ? e.center.lat : e.lat,
+        lon: e.center ? e.center.lon : e.lon,
+        tags: e.tags || {},
+      }));
+      return Object.fromEntries(some.map((b) => [b.id, osmAmenities(b, features)]));
+    } catch (err) {
+      failures.push(err.message);
+    }
+  }
+  throw new Error(`Couldn't load amenities (${failures.join("; ")})`);
+}
+
 // Road driving times from `origin` to each beach, from the public OSRM router (OpenStreetMap roads,
 // no traffic): { beachId: { minutes, km } }. One request for up to DRIVE_MAX_BEACHES beaches.
 const DRIVE_MAX_BEACHES = 60;
@@ -431,5 +464,5 @@ async function sendVote({ beachId, reportId, vote }) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes };
+  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes, getAmenities };
 }
