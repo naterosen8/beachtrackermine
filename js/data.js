@@ -13,7 +13,8 @@ const LOCAL_KEY = "beachcheck.reports";
 const TIMEOUT_MS = 20000;
 
 async function getJson(url, options = {}) {
-  const host = new URL(url).host;
+  // Relative addresses (our own api/) resolve against the page.
+  const host = new URL(url, typeof location !== "undefined" ? location.href : undefined).host;
   let res;
   try {
     res = await fetch(url, { ...options, signal: AbortSignal.timeout(options.timeout || TIMEOUT_MS) });
@@ -345,8 +346,8 @@ async function getReports(ids) {
 }
 
 // Sends a report; returns { shared } or throws with a message to show.
-async function sendReport({ beachId, crowd, parking, note, slot }) {
-  const body = { beachId, crowd, parking: parking || undefined, note: note || undefined, slot };
+async function sendReport({ beachId, crowd, parking, note, photo, slot }) {
+  const body = { beachId, crowd, parking: parking || undefined, note: note || undefined, photo: photo || undefined, slot };
   let res;
   try {
     res = await fetch("api/reports", {
@@ -369,6 +370,11 @@ async function sendReport({ beachId, crowd, parking, note, slot }) {
   const report = { id: localId(), time: Date.now(), crowd };
   if (parking) report.parking = parking;
   if (note) report.note = note.slice(0, 140);
+  if (photo) {
+    // Device storage is small: keep only the newest photo.
+    for (const e of Object.values(all)) for (const r of e.recent || []) delete r.photoData;
+    report.photoData = `data:image/jpeg;base64,${photo}`;
+  }
   entry.recent = [report, ...entry.recent].slice(0, 50);
   const s = (entry.history[slot] = entry.history[slot] || { sum: 0, count: 0 });
   s.sum += crowd;
@@ -407,5 +413,5 @@ async function sendVote({ beachId, reportId, vote }) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality };
+  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports };
 }

@@ -137,3 +137,17 @@ test("marine data for several beaches in one request, skipping ones with no sea 
   assert.deepStrictEqual(Object.keys(marine), ["a"]);
   assert.deepStrictEqual(marine.a[1], { time: 3600e3, waveM: 0.9, periodS: 12, waterC: 19.2, level: 0.6 });
 });
+
+test("getReports reads the shared store through a relative address", async (t) => {
+  const { getReports } = require("../js/data.js");
+  global.location = { href: "https://beach.example/?at=1,2" };
+  t.after(() => { delete global.location; });
+  let asked;
+  t.mock.method(globalThis, "fetch", async (url) => {
+    asked = url;
+    return { ok: true, json: async () => ({ reports: { "osm:way/1": [{ time: 1, crowd: 3 }] }, history: {} }) };
+  });
+  const got = await getReports(["osm:way/1"]);
+  assert.strictEqual(got.shared, true);
+  assert.strictEqual(asked, "api/reports?ids=osm%3Away%2F1");
+});
