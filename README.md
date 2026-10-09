@@ -59,6 +59,13 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
 - **Directions**: opens Google Maps driving directions to the beach.
 - **My beaches and filters**: star beaches to keep them (saved on this device), and filter to your
   beaches, lifeguarded beaches, dog-friendly beaches or free parking.
+- **Alerts** (`js/alerts.js`, `api/alerts.js`, `sw.js`): tap "Alert me" on a beach to get a
+  notification when beachgoers report it busy or packed, or its parking full (at most once every
+  3 hours per beach). Each new report triggers the pushes straight away (no scheduled job needed),
+  so they arrive with the site closed. While the page is open it also checks on each refresh.
+  On iPhone, web notifications need the site added to the Home Screen first (iOS 16.4+).
+- **Your beaches today**: for starred beaches, what beachgoers report now or when the forecast
+  says they'll be busy.
 - **Links**: `?q=Goleta` searches a place; `?at=34.41,-119.83&near=Goleta&beach=<id>` opens a spot
   with one beach highlighted (what the Share button sends). The site also remembers the last place
   you looked at.
@@ -81,12 +88,16 @@ node --test tests/*.test.js   # run the tests
 2. Add an Upstash Redis store from the Vercel Marketplace (Storage → Upstash), which sets
    `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or set `UPSTASH_REDIS_REST_URL` /
    `UPSTASH_REDIS_REST_TOKEN` yourself). Without it, reports are saved only on each visitor's device.
+3. For alerts with the site closed, create web push keys once (`npx web-push generate-vapid-keys`)
+   and add them as environment variables `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (optionally
+   `VAPID_SUBJECT`, a `mailto:` address or the site's URL). Without them, alerts only work while
+   the page is open.
 
 ## Roadmap
 
 1. [x] Find beaches near you, crowd estimates, parking, weather, directions
 2. [x] Live beachgoer reports, with estimates that learn from past reports
-3. [ ] Alerts: tell me when my favorite beach gets busy or parking fills up
+3. [x] Alerts: tell me when my favorite beach gets busy or parking fills up
 4. [x] Favorites and a "my beaches" view, filters, share links, plan up to a week ahead
 5. [ ] Photos with reports, and up/down votes on reports to weed out bad ones
 6. [ ] Tides, water quality and surf conditions (tides, surf and water temperature done; water quality to do)

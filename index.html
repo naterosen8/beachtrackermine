@@ -7,6 +7,11 @@
   <meta name="description" content="How busy are the beaches near you? Live reports from beachgoers, parking, weather and directions.">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="beach.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#0e7c86">
+  <meta name="apple-mobile-web-app-title" content="Beach Check">
 </head>
 <body>
   <main class="wrap">
@@ -56,6 +61,11 @@
     </div>
     <p id="shared-note" class="fine" hidden>Reports are saved on this device only until the shared report store is set up (see README).</p>
 
+    <section id="heads-up" class="heads-up" hidden>
+      <h2>Your beaches today</h2>
+      <ul></ul>
+    </section>
+
     <div id="map" class="map" hidden></div>
     <ol id="beaches" class="beaches"></ol>
 
@@ -84,8 +94,22 @@
       <div class="actions">
         <a class="button directions" target="_blank" rel="noopener">Directions</a>
         <button type="button" class="report-toggle">I'm here: report</button>
+        <button type="button" class="alert-toggle" aria-expanded="false">🔔 Alert me</button>
         <button type="button" class="share">Share</button>
       </div>
+      <form class="alert-form" hidden>
+        <fieldset>
+          <legend>Tell me when it's</legend>
+          <div class="choices alert-levels"></div>
+        </fieldset>
+        <label class="check"><input type="checkbox" name="parking"> or the parking fills up</label>
+        <p class="fine">Alerts come from beachgoers' live reports, at most once every 3 hours.</p>
+        <div class="actions">
+          <button type="submit" class="primary">Turn on alerts</button>
+          <button type="button" class="alert-off" hidden>Turn off</button>
+          <span class="alert-msg" role="status"></span>
+        </div>
+      </form>
       <form class="report" hidden>
         <fieldset>
           <legend>How crowded is it?</legend>
@@ -109,6 +133,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="js/crowd.js"></script>
   <script src="js/conditions.js"></script>
+  <script src="js/alerts.js"></script>
   <script src="js/data.js"></script>
   <script src="js/meters.js"></script>
   <script src="js/santa-barbara.js"></script>

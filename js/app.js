@@ -8,6 +8,10 @@ const params = new URLSearchParams(location.search);
 const demo = params.has("demo");
 const FAVORITES_KEY = "beachcheck.favorites";
 const PLACE_KEY = "beachcheck.place";
+const ALERTS_KEY = "beachcheck.alerts"; // { beachId: { name, level, parking, push } }
+const ALERTED_KEY = "beachcheck.alerted"; // { beachId: time of the last alert this page showed }
+const BUSY = 3.5; // the forecast counts as "busy" from here
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
 const state = {
   center: null, // { lat, lon, label }
@@ -20,6 +24,7 @@ const state = {
   marine: {}, // hourly waves, water temperature and tide by beach id
   updated: null, // when live reports were last fetched
   favorites: new Set(load_(FAVORITES_KEY) || []),
+  alerts: load_(ALERTS_KEY) || {},
 };
 let focusId = params.get("beach"); // a shared link points at this beach
 let map = null;
@@ -217,7 +222,9 @@ function render() {
   const list = $("beaches");
   const openForm = list.querySelector(".report:not([hidden])");
   const openId = openForm && openForm.closest(".card").dataset.id;
-  list.replaceChildren(...views.map((v) => card(v, v.beach.id === openId, when)));
+  const openAlert = list.querySelector(".alert-form:not([hidden])");
+  const openAlertId = openAlert && openAlert.closest(".card").dataset.id;
+  list.replaceChildren(...views.map((v) => card(v, v.beach.id === openId, when, v.beach.id === openAlertId)));
   if (state.beaches.length && !shown.length) {
     list.append(el("li", $("f-fav").checked && !state.favorites.size
       ? "Tap ☆ on a beach to add it to your beaches."
@@ -226,7 +233,49 @@ function render() {
   drawMap(views);
   $("shared-note").hidden = state.shared || demo;
   $("refresh").hidden = !state.beaches.length;
+  headsUp();
   showFocus();
+}
+
+// "Your beaches today": for each starred beach on the list, what beachgoers say now, or when
+// it's expected to be busy today.
+function headsUp() {
+  const mine = state.beaches.filter((b) => state.favorites.has(b.id));
+  $("heads-up").hidden = !mine.length;
+  if (!mine.length) return;
+  const today = new Date();
+  const items = mine.map((b) => {
+    const live = liveStatus(state.reports[b.id] || []);
+    let text;
+    if (live) {
+      text = `${crowdLabel(live.crowd)} right now (${live.count} live report${live.count > 1 ? "s" : ""})` +
+        (live.parking === "full" ? " · parking full" : "");
+    } else {
+      const day = dayForecast({
+        day: today,
+        lat: b.lat,
+        weatherFor: state.weather ? (t) => weatherAt(state.weather, t) : null,
+        history: state.history[b.id],
+      });
+      const busy = day.filter((h) => h.crowd >= BUSY);
+      text = busy.length
+        ? `Expected busy ${rangeText(busy[0].hour, busy[busy.length - 1].hour + 1)}`
+        : "Not expected to get busy today";
+    }
+    const li = el("li", null, live && Math.round(live.crowd) >= 4 ? "busy" : "");
+    const link = el("a", b.name);
+    link.href = `#${encodeURIComponent(b.id)}`;
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (filtered([b]).length === 0) for (const id of ["f-fav", "f-guard", "f-dogs", "f-free"]) $(id).checked = false;
+      focusId = b.id;
+      render();
+    });
+    li.append(link, document.createTextNode(`: ${text}`));
+    if (state.alerts[b.id]) li.append(el("span", " 🔔", "bell"));
+    return li;
+  });
+  $("heads-up").querySelector("ul").replaceChildren(...items);
 }
 
 // After opening a shared link, scroll to and highlight that beach once.
@@ -239,7 +288,7 @@ function showFocus() {
   target.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-function card(v, reportOpen, when) {
+function card(v, reportOpen, when, alertOpen) {
   const { beach, meters, live, useLive, crowd, est, weather, parking, sea, tide, sun, day } = v;
   const node = $("beach-card").content.firstElementChild.cloneNode(true);
   const level = Math.min(5, Math.max(1, Math.round(crowd)));
@@ -309,7 +358,162 @@ function card(v, reportOpen, when) {
   dayBars(node, day, when);
   node.querySelector(".share").addEventListener("click", (e) => shareBeach(beach, e.currentTarget));
   buildReportForm(node, beach, reportOpen);
+  buildAlertForm(node, beach, alertOpen);
   return node;
+}
+
+// --- Alerts ------------------------------------------------------------------
+
+function saveAlerts() {
+  save_(ALERTS_KEY, state.alerts);
+}
+
+// Where an alert for this beach should open: this search, with the beach highlighted.
+function beachLink(beach) {
+  const url = new URLSearchParams({
+    at: `${state.center.lat.toFixed(4)},${state.center.lon.toFixed(4)}`,
+    near: state.center.label === "you" ? beach.name : state.center.label,
+    beach: beach.id,
+  });
+  return `/?${url}`;
+}
+
+// Signs this browser up for pushes about one beach. Resolves true when pushes will arrive with
+// the site closed, false when alerts only work while the page is open; throws with a message
+// when this browser can't show notifications at all.
+async function enablePush(beach, prefs) {
+  if (!("Notification" in window)) {
+    throw new Error(isIOS
+      ? "On iPhone, add Beach Check to your Home Screen first (Share → Add to Home Screen), then open it from there and turn alerts on."
+      : "This browser can't show notifications.");
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") throw new Error("Notifications are blocked for this site. Allow them in your browser settings, then try again.");
+  if (demo || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  let res;
+  try {
+    res = await fetch("api/alerts");
+  } catch {
+    return false;
+  }
+  if (!res.ok) return false;
+  const { publicKey } = await res.json();
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToBytes(publicKey) });
+  const saved = await fetch("api/alerts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ beachId: beach.id, name: beach.name, level: prefs.level, parking: prefs.parking, link: beachLink(beach), subscription: sub.toJSON() }),
+  });
+  if (!saved.ok) {
+    const err = await saved.json().catch(() => ({}));
+    throw new Error(err.error || "Couldn't turn on alerts. Try again in a minute.");
+  }
+  return true;
+}
+
+async function disablePush(beachId) {
+  if (!("serviceWorker" in navigator)) return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg && (await reg.pushManager.getSubscription());
+  if (!sub) return;
+  await fetch("api/alerts", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ beachId, endpoint: sub.endpoint }),
+  }).catch(() => {});
+}
+
+function urlBase64ToBytes(text) {
+  const b64 = (text + "=".repeat((4 - (text.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function buildAlertForm(node, beach, open) {
+  const form = node.querySelector(".alert-form");
+  const toggle = node.querySelector(".alert-toggle");
+  const off = form.querySelector(".alert-off");
+  const msg = form.querySelector(".alert-msg");
+  const current = state.alerts[beach.id];
+  const uid = beach.id.replace(/\W/g, "-");
+  form.querySelector(".alert-levels").append(
+    choice(`alert-${uid}`, 4, "Busy or packed"),
+    choice(`alert-${uid}`, 5, "Packed"),
+  );
+  form.querySelector(`input[value="${current ? current.level : 4}"]`).checked = true;
+  form.elements.parking.checked = current ? current.parking : true;
+  toggle.textContent = current ? "🔔 Alerts on" : "🔔 Alert me";
+  toggle.classList.toggle("on", !!current);
+  off.hidden = !current;
+  form.querySelector("button[type=submit]").textContent = current ? "Save" : "Turn on alerts";
+  form.hidden = !open;
+  toggle.setAttribute("aria-expanded", String(open));
+  toggle.addEventListener("click", () => {
+    form.hidden = !form.hidden;
+    toggle.setAttribute("aria-expanded", String(!form.hidden));
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const prefs = {
+      name: beach.name,
+      level: Number(form.querySelector(`input[name="alert-${uid}"]:checked`).value),
+      parking: form.elements.parking.checked,
+    };
+    const button = form.querySelector("button[type=submit]");
+    button.disabled = true;
+    msg.textContent = "Turning on…";
+    try {
+      prefs.push = await enablePush(beach, prefs);
+      state.alerts[beach.id] = prefs;
+      saveAlerts();
+      state.favorites.add(beach.id); // alerts are for your beaches
+      save_(FAVORITES_KEY, [...state.favorites]);
+      form.hidden = true;
+      render();
+      setStatus(prefs.push
+        ? `Alerts on for ${beach.name}. You'll get a notification when it's ${prefs.level === 5 ? "packed" : "busy"}${prefs.parking ? " or parking fills up" : ""}, even with the site closed.`
+        : `Alerts on for ${beach.name} while this page is open.${demo ? "" : " (Alerts with the site closed aren't set up on this site yet.)"}`);
+    } catch (err) {
+      msg.textContent = err.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  off.addEventListener("click", async () => {
+    delete state.alerts[beach.id];
+    saveAlerts();
+    form.hidden = true;
+    render();
+    setStatus(`Alerts off for ${beach.name}.`);
+    disablePush(beach.id);
+  });
+}
+
+// While the page is open, alert about watched beaches from the live reports just fetched.
+// Uses the same tag as pushes, so a push and this never show twice.
+async function checkLiveAlerts() {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const alerted = load_(ALERTED_KEY) || {};
+  const now = Date.now();
+  for (const [id, prefs] of Object.entries(state.alerts)) {
+    const live = liveStatus(state.reports[id] || []);
+    const reason = alertReason(live, prefs);
+    if (!reason || now - (alerted[id] || 0) < ALERT_COOLDOWN_MS) continue;
+    alerted[id] = now;
+    const { title, body } = alertMessage(prefs.name, live, reason);
+    try {
+      const reg = "serviceWorker" in navigator && (await navigator.serviceWorker.getRegistration());
+      const options = { body, tag: `busy-${id}`, icon: "icon-192.png", data: { url: location.pathname + location.search } };
+      if (reg) await reg.showNotification(title, options);
+      else new Notification(title, options);
+    } catch {
+      // notifications unavailable: the "Your beaches today" list still shows it
+    }
+  }
+  save_(ALERTED_KEY, alerted);
 }
 
 // A small bar for each hour of the chosen day: taller and warmer is busier. Tap one to plan for it.
@@ -502,6 +706,7 @@ async function refreshReports() {
     for (const [id, h] of Object.entries(DEMO_HISTORY)) state.history[id] = { ...h, ...state.history[id] };
   }
   render();
+  checkLiveAlerts();
 }
 
 // Live street-meter counts, where the city publishes them. Optional: failures just hide the line.
@@ -680,12 +885,15 @@ $("radius").addEventListener("change", () => state.center && load(state.center))
 // Keep live reports fresh while the page is open.
 setInterval(() => {
   // Don't rebuild the list under someone halfway through a report.
-  const reporting = document.querySelector(".report:not([hidden])");
+  const reporting = document.querySelector(".report:not([hidden]), .alert-form:not([hidden])");
   if (document.visibilityState === "visible" && !reporting && state.center) {
     refreshReports().then(() => setStatus(beachesStatus(Number($("radius").value), state.center))).catch(() => {});
     refreshMeters();
   }
 }, REFRESH_MS);
+
+// Receives alert pushes (sw.js). Pages work the same without it.
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
 // Where to start: a shared link (?at=lat,lon&near=Name or ?q=Goleta), else the last place
 // searched on this device, else Santa Barbara.

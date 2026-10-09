@@ -2,34 +2,21 @@
 //   GET  /api/reports?ids=osm:way/1,osm:node/2  -> { reports: { id: [report] }, history: { id: { slot: { sum, count } } } }
 //   POST /api/reports { beachId, crowd: 1..5, parking?, note?, slot: "we:14" } -> { ok: true, report }
 // Recent reports expire after a few hours; per-slot totals are kept so we can learn each beach's patterns.
+// After each report, anyone watching that beach (api/alerts.js) gets a push if it's now busy.
 // Without a store configured it answers 503, and the site falls back to saving reports on the device.
 
+const { store, clientIp, readBody, pushKeys, sendPush } = require("./_store.js");
+const { liveStatus } = require("../js/crowd.js");
+const { alertReason, alertMessage, ALERT_COOLDOWN_MS } = require("../js/alerts.js");
+
 const KEEP_SECONDS = 6 * 60 * 60;
+const MAX_PUSHES = 300; // alerts sent per report, at most
 const MAX_RECENT = 50;
 const MAX_IDS = 60;
 const RATE_LIMIT_SECONDS = 10 * 60; // one report per beach per visitor every 10 minutes
 const PARKING = ["plenty", "some", "full"];
 const ID_RE = /^(osm:(node|way|relation)\/\d{1,15}|demo:[a-z0-9-]{1,40})$/;
 const SLOT_RE = /^(we|wd):([01]?\d|2[0-3])$/;
-
-function store() {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return null;
-  // Runs several Redis commands in one request; returns their results in order.
-  return async (commands) => {
-    const res = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(commands),
-    });
-    if (!res.ok) throw new Error(`Store returned ${res.status}`);
-    return (await res.json()).map((r) => {
-      if (r.error) throw new Error(r.error);
-      return r.result;
-    });
-  };
-}
 
 // Checks a submitted report; returns the cleaned report or throws with a message for the user.
 function parseReport(body, now = Date.now()) {
@@ -58,15 +45,37 @@ function parseHistory(flat) {
   return history;
 }
 
-function clientIp(req) {
-  const fwd = (req.headers && req.headers["x-forwarded-for"]) || "";
-  return fwd.split(",")[0].trim() || "unknown";
-}
+// Pushes an alert to everyone watching this beach whose settings the live status now meets,
+// at most once per person every few hours. Never fails the report it follows.
+async function notifyWatchers(run, beachId, keys) {
+  const [recentRaw, watchersRaw] = await run([
+    ["LRANGE", `recent:${beachId}`, 0, MAX_RECENT - 1],
+    ["HGETALL", `alerts:${beachId}`],
+  ]);
+  const watchers = Array.isArray(watchersRaw) ? watchersRaw : [];
+  if (!watchers.length) return 0;
+  const reports = (Array.isArray(recentRaw) ? recentRaw : [])
+    .map((s) => { try { return JSON.parse(s); } catch { return null; } })
+    .filter(Boolean);
+  const live = liveStatus(reports);
+  if (!live) return 0;
 
-async function readBody(req) {
-  if (req.body && typeof req.body === "object") return req.body;
-  if (typeof req.body === "string") return JSON.parse(req.body);
-  return {};
+  const due = [];
+  for (let i = 0; i + 1 < watchers.length && due.length < MAX_PUSHES; i += 2) {
+    let alert;
+    try { alert = JSON.parse(watchers[i + 1]); } catch { continue; }
+    const reason = alertReason(live, alert);
+    if (reason) due.push({ field: watchers[i], alert, reason });
+  }
+  if (!due.length) return 0;
+  // Claim each cooldown first, so two reports at once don't both alert the same person.
+  const claims = await run(due.map((d) => ["SET", `alerted:${beachId}:${d.field}`, "1", "NX", "EX", ALERT_COOLDOWN_MS / 1000]));
+  const sends = due.filter((_, i) => claims[i] === "OK");
+  const statuses = await Promise.all(sends.map(({ alert, reason }) =>
+    module.exports.sendPush(alert.sub, { ...alertMessage(alert.name, live, reason), url: alert.link, tag: `busy-${beachId}` }, keys)));
+  const gone = sends.filter((_, i) => statuses[i] === 404 || statuses[i] === 410).map((d) => d.field);
+  if (gone.length) await run([["HDEL", `alerts:${beachId}`, ...gone]]);
+  return sends.length;
 }
 
 async function handler(req, res) {
@@ -110,6 +119,14 @@ async function handler(req, res) {
         ["HINCRBY", `hist:${beachId}`, `${slot}:sum`, report.crowd],
         ["HINCRBY", `hist:${beachId}`, `${slot}:n`, 1],
       ]);
+      const keys = pushKeys(req);
+      if (keys) {
+        try {
+          await notifyWatchers(run, beachId, keys);
+        } catch (err) {
+          console.warn(`alerts: ${err.message}`);
+        }
+      }
       return res.status(200).json({ ok: true, report });
     }
 
@@ -124,3 +141,5 @@ async function handler(req, res) {
 module.exports = handler;
 module.exports.parseReport = parseReport;
 module.exports.parseHistory = parseHistory;
+module.exports.notifyWatchers = notifyWatchers;
+module.exports.sendPush = sendPush;

@@ -1,0 +1,11 @@
+{
+  "name": "beach-check",
+  "private": true,
+  "description": "How busy are the beaches near you? Static site plus Vercel functions in api/.",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

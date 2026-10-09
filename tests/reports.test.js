@@ -97,3 +97,89 @@ test("POST rejects invalid reports before touching the store", async (t) => {
   assert.strictEqual(res.statusCode, 400);
   assert.strictEqual(calls.length, 0);
 });
+
+// --- Alerts --------------------------------------------------------------
+
+const alertsHandler = require("../api/alerts.js");
+
+function pushEnv(t) {
+  process.env.VAPID_PUBLIC_KEY = "pub";
+  process.env.VAPID_PRIVATE_KEY = "priv";
+  t.after(() => { delete process.env.VAPID_PUBLIC_KEY; delete process.env.VAPID_PRIVATE_KEY; });
+}
+
+const SUB = { endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "BNc", auth: "a2b" } };
+
+test("alerts API needs both the store and push keys", async (t) => {
+  fakeStore(t, () => "OK");
+  const res = fakeRes();
+  await alertsHandler({ method: "GET", headers: {} }, res);
+  assert.strictEqual(res.statusCode, 503);
+  pushEnv(t);
+  const res2 = fakeRes();
+  await alertsHandler({ method: "GET", headers: {} }, res2);
+  assert.deepStrictEqual(res2.body, { publicKey: "pub" });
+});
+
+test("alert sign-up is stored per beach, keyed by endpoint", async (t) => {
+  pushEnv(t);
+  const calls = fakeStore(t, (c) => (c[0] === "INCR" ? 1 : c[0] === "HLEN" ? 0 : "OK"));
+  const res = fakeRes();
+  await alertsHandler({
+    method: "POST",
+    headers: { "x-forwarded-for": "1.2.3.4" },
+    body: { beachId: "osm:way/1", name: "East Beach", level: 4, parking: true, link: "/?beach=x", subscription: SUB },
+  }, res);
+  assert.strictEqual(res.statusCode, 200);
+  const hset = calls[2][0];
+  assert.deepStrictEqual(hset.slice(0, 3), ["HSET", "alerts:osm:way/1", alertsHandler.fieldFor(SUB.endpoint)]);
+  assert.strictEqual(JSON.parse(hset[3]).level, 4);
+
+  const bad = fakeRes();
+  await alertsHandler({ method: "POST", headers: {}, body: { beachId: "osm:way/1", name: "x", level: 4, subscription: { endpoint: "https://example.com/x", keys: SUB.keys } } }, bad);
+  assert.strictEqual(bad.statusCode, 400);
+});
+
+test("a report that makes the beach busy pushes to watchers once, and drops dead subscriptions", async (t) => {
+  pushEnv(t);
+  const now = Date.now();
+  const watcher = (level, endpoint) => JSON.stringify({ sub: { ...SUB, endpoint }, level, parking: false, name: "East Beach", link: "/?beach=x" });
+  const calls = fakeStore(t, (c) => {
+    if (c[0] === "SET") return "OK";
+    if (c[0] === "LRANGE") return [JSON.stringify({ time: now, crowd: 5 }), JSON.stringify({ time: now - 60e3, crowd: 4 })];
+    if (c[0] === "HGETALL") return ["f1", watcher(4, "https://fcm.googleapis.com/1"), "f2", watcher(5, "https://fcm.googleapis.com/2"), "f3", "junk"];
+    return 1;
+  });
+  const sent = [];
+  t.mock.method(handler, "sendPush", async (sub, payload) => {
+    sent.push({ endpoint: sub.endpoint, payload });
+    return sub.endpoint.endsWith("/2") ? 410 : 201;
+  });
+  const res = fakeRes();
+  await handler({ method: "POST", headers: {}, body: { beachId: "osm:way/1", crowd: 5, slot: "we:14" } }, res);
+  assert.strictEqual(res.statusCode, 200);
+  // crowd ≈ 4.5 rounds to 5: both a "busy" and a "packed" watcher qualify.
+  assert.deepStrictEqual(sent.map((s) => s.endpoint), ["https://fcm.googleapis.com/1", "https://fcm.googleapis.com/2"]);
+  assert.match(sent[0].payload.title, /^East Beach is /);
+  assert.strictEqual(sent[0].payload.url, "/?beach=x");
+  const cooldowns = calls.find((cmds) => cmds[0][1] && String(cmds[0][1]).startsWith("alerted:"));
+  assert.deepStrictEqual(cooldowns.map((c) => c[1]), ["alerted:osm:way/1:f1", "alerted:osm:way/1:f2"]);
+  assert.deepStrictEqual(calls[calls.length - 1], [["HDEL", "alerts:osm:way/1", "f2"]]);
+});
+
+test("watchers alerted recently aren't alerted again, and push trouble never fails the report", async (t) => {
+  pushEnv(t);
+  const now = Date.now();
+  let sets = 0;
+  fakeStore(t, (c) => {
+    if (c[0] === "SET") return sets++ === 0 ? "OK" : null; // rate limit passes, cooldown already taken
+    if (c[0] === "LRANGE") return [JSON.stringify({ time: now, crowd: 5 })];
+    if (c[0] === "HGETALL") return ["f1", JSON.stringify({ sub: SUB, level: 4, name: "East Beach" })];
+    return 1;
+  });
+  const push = t.mock.method(handler, "sendPush", async () => { throw new Error("boom"); });
+  const res = fakeRes();
+  await handler({ method: "POST", headers: {}, body: { beachId: "osm:way/1", crowd: 5, slot: "we:14" } }, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(push.mock.callCount(), 0);
+});
