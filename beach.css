@@ -235,3 +235,6 @@ button:disabled { opacity: .6; cursor: wait; }
 .photo-view img { display: block; max-width: 100%; max-height: 75vh; border-radius: 8px; }
 .photo-view form { text-align: right; margin-bottom: 8px; }
 .photo-view p { margin: 8px 0 0; }
+
+.facts .leave { font-weight: 600; }
+.facts .beat { font-weight: 400; color: var(--accent); }

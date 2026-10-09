@@ -25,6 +25,7 @@ const state = {
   meters: {}, // live LA street-meter counts by beach id
   marine: {}, // hourly waves, water temperature and tide by beach id
   water: [], // county water quality sampling sites
+  drives: {}, // road drive times from the searched place, by beach id
   updated: null, // when live reports were last fetched
   favorites: new Set(load_(FAVORITES_KEY) || []),
   alerts: load_(ALERTS_KEY) || {},
@@ -187,6 +188,7 @@ function describe(beach, when) {
     parking = { ...parking, score: share >= 0.3 ? 3 : share >= 0.1 ? 2 : 0.5 };
   }
 
+  const drive = driveFor(beach);
   const marineHours = state.marine[beach.id];
   const sea = marineAt(marineHours, when.getTime());
   const tide = marineHours ? tideAt(marineHours, when.getTime()) : null;
@@ -202,6 +204,7 @@ function describe(beach, when) {
 
   return {
     beach,
+    drive,
     water,
     waterLevel,
     sea,
@@ -217,13 +220,16 @@ function describe(beach, when) {
     parking,
     // Lower is better: quieter, closer, easier to park.
     // A water quality warning or closure pushes the beach well down the best picks.
-    score: crowd + beach.distanceKm / 10 + (3 - parking.score) * 0.5 + (waterLevel === "closed" ? 3 : waterLevel === "warning" ? 1.5 : 0),
+    score: crowd + drive.minutes / 15 + (3 - parking.score) * 0.5 + (waterLevel === "closed" ? 3 : waterLevel === "warning" ? 1.5 : 0),
   };
 }
 
+// Minutes of driving: by road when the router answered, else estimated from the straight line.
+const driveFor = (beach) => state.drives[beach.id] || { minutes: driveMinutes(beach.distanceKm), km: null, estimate: true };
+
 const SORTS = {
   best: (a, b) => a.score - b.score,
-  distance: (a, b) => a.beach.distanceKm - b.beach.distanceKm,
+  distance: (a, b) => a.drive.minutes - b.drive.minutes || a.beach.distanceKm - b.beach.distanceKm,
   quiet: (a, b) => a.crowd - b.crowd || a.beach.distanceKm - b.beach.distanceKm,
   parking: (a, b) => b.parking.score - a.parking.score || a.beach.distanceKm - b.beach.distanceKm,
 };
@@ -306,14 +312,15 @@ function showFocus() {
 }
 
 function card(v, reportOpen, when, alertOpen) {
-  const { beach, meters, live, useLive, crowd, est, weather, parking, sea, tide, sun, day, water } = v;
+  const { beach, meters, live, useLive, crowd, est, weather, parking, sea, tide, sun, day, water, drive } = v;
   const node = $("beach-card").content.firstElementChild.cloneNode(true);
   const level = Math.min(5, Math.max(1, Math.round(crowd)));
   node.dataset.id = beach.id;
   node.classList.add(`level-${level}`);
   node.querySelector(".name").textContent = beach.name;
-  node.querySelector(".away").textContent =
-    `${fmtDistance(beach.distanceKm)} · ~${driveMinutes(beach.distanceKm)} min drive`;
+  node.querySelector(".away").textContent = drive.estimate
+    ? `${fmtDistance(beach.distanceKm)} · ~${drive.minutes} min drive`
+    : `${fmtDistance(drive.km != null ? drive.km : beach.distanceKm)} by road · ${drive.minutes} min drive`;
   node.querySelector(".crowd-label").textContent = crowdLabel(crowd);
   node.querySelector(".meter").dataset.level = level;
   const fav = node.querySelector(".fav");
@@ -332,6 +339,7 @@ function card(v, reportOpen, when, alertOpen) {
     : `No live reports${live && !useLive ? " for then" : ""}. Based on: ${est.reasons.join(" · ")}`;
 
   const facts = node.querySelector(".facts");
+  for (const line of leaveLines(drive, when, day)) facts.append(line);
   facts.append(el("li", `Parking: ${parking.text}`));
   if (meters) {
     facts.append(el("li", `Street meters within ${imperial ? "½ mile" : "800 m"}: ${meters.free} of ${meters.total} free right now ` +
@@ -703,6 +711,32 @@ async function shareBeach(beach, button) {
   }
 }
 
+// "Leave by 9:42 AM to get there at 10 AM (about 18 min with traffic then)", and when to leave to
+// beat the crowd if the forecast says it gets busy later.
+function leaveLines(drive, when, day) {
+  const lines = [];
+  const now = Date.now();
+  const goingNow = $("time").value === "now";
+  const arrival = goingNow ? null : when.getTime();
+  const trip = (d) => `about ${d} min${trafficFactor(new Date(goingNow ? now : arrival - d * 60000)) > 1 ? " with the usual traffic then" : ""}`;
+  if (goingNow) {
+    const drv = Math.round(drive.minutes * trafficFactor(new Date(now)));
+    lines.push(el("li", `Drive: leave now to arrive about ${fmtClock(now + drv * 60000)} (${trip(drv)})`, "leave"));
+  } else {
+    const { leave, drive: drv } = leaveTime(arrival, drive.minutes);
+    const text = leave < now
+      ? `Drive: ${trip(drv)}. Too late to arrive by ${fmtClock(arrival)}.`
+      : `Leave by ${fmtClockOn(leave, when)} to get there at ${fmtClock(arrival)} (${trip(drv)})`;
+    lines.push(el("li", text, "leave"));
+  }
+  const busy = busyFrom(day, now);
+  if (busy && (goingNow || arrival >= busy - 60 * 60000)) {
+    const { leave } = leaveTime(busy, drive.minutes);
+    if (leave > now) lines.push(el("li", `Expected busy from ${fmtClock(busy)}: leave by ${fmtClockOn(leave, when)} to beat the crowd`, "leave beat"));
+  }
+  return lines;
+}
+
 const WATER_TEXT = {
   open: "Meets state health standards",
   warning: "Warning: bacteria above state health standards. The county advises staying out of the water here",
@@ -943,6 +977,20 @@ async function refreshMarine() {
   }
 }
 
+// Road drive times from the searched place. Optional: straight-line estimates are used without them.
+async function refreshDrives() {
+  const beaches = state.beaches;
+  const center = state.center;
+  try {
+    const drives = await getDriveTimes(center, beaches);
+    if (beaches !== state.beaches || center !== state.center) return;
+    state.drives = drives;
+    render();
+  } catch {
+    // keep the estimates
+  }
+}
+
 // County water quality testing. Optional: failures just leave those lines out.
 async function refreshWater() {
   const beaches = state.beaches;
@@ -983,6 +1031,7 @@ async function load(center) {
   state.meters = {};
   state.marine = {};
   state.water = [];
+  state.drives = {};
   rememberPlace(center);
   setStatus(`Finding beaches near ${center.label}…`);
   let radius = Number($("radius").value);
@@ -1007,6 +1056,7 @@ async function load(center) {
     await refreshReports();
     refreshMarine();
     refreshWater();
+    refreshDrives();
     setStatus(beachesStatus(radius, center));
     findBeaches(center, radius)
       .then(async (found) => {
@@ -1015,6 +1065,7 @@ async function load(center) {
         await refreshReports();
         refreshMarine();
         refreshWater();
+        refreshDrives();
         setStatus(beachesStatus(radius, center));
       })
       .catch(() => {}); // the hand-checked list is already showing
@@ -1058,6 +1109,7 @@ async function load(center) {
   refreshMeters();
   refreshMarine();
   refreshWater();
+  refreshDrives();
   setStatus(beachesStatus(radius, center));
 }
 

@@ -60,3 +60,23 @@ test("flat days say so", () => {
   const hours = [6, 7, 8].map((hour) => ({ hour, crowd: 1.2 }));
   assert.strictEqual(daySummary(hours), "About the same all day: empty");
 });
+
+test("traffic: weekday commutes and weekend beach middays are slower", () => {
+  const { trafficFactor, leaveTime, busyFrom } = require("../js/conditions.js");
+  assert.strictEqual(trafficFactor(new Date(2026, 9, 7, 8)), 1.35); // Wednesday 8 AM
+  assert.strictEqual(trafficFactor(new Date(2026, 9, 7, 12)), 1);
+  assert.strictEqual(trafficFactor(new Date(2026, 9, 10, 12)), 1.2); // Saturday noon
+  assert.strictEqual(trafficFactor(new Date(2026, 9, 10, 8)), 1);
+  // Arrive Wednesday 9:00 after a 20-minute drive: leaving ~8:33 is in the morning rush.
+  const arrive = new Date(2026, 9, 7, 9).getTime();
+  const { leave, drive } = leaveTime(arrive, 20);
+  assert.strictEqual(drive, 27);
+  assert.strictEqual(new Date(leave).getMinutes(), 33);
+  // Arrive 11 AM on a weekday: no rush.
+  assert.strictEqual(leaveTime(new Date(2026, 9, 7, 11).getTime(), 20).drive, 20);
+
+  const day = [9, 10, 11, 12].map((h, i) => ({ hour: h, time: new Date(2026, 9, 10, h).getTime(), crowd: [2, 3, 3.6, 4.2][i] }));
+  assert.strictEqual(busyFrom(day, new Date(2026, 9, 10, 8).getTime()), new Date(2026, 9, 10, 11).getTime());
+  assert.strictEqual(busyFrom(day, new Date(2026, 9, 10, 12).getTime()), null); // already busy
+  assert.strictEqual(busyFrom(day.slice(0, 2), 0), null); // never busy
+});

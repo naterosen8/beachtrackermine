@@ -151,3 +151,15 @@ test("getReports reads the shared store through a relative address", async (t) =
   assert.strictEqual(got.shared, true);
   assert.strictEqual(asked, "api/reports?ids=osm%3Away%2F1");
 });
+
+test("road drive times for every beach in one routing request", async () => {
+  const { getDriveTimes } = require("../js/data.js");
+  let asked;
+  const drives = await getDriveTimes({ lat: 34.41, lon: -119.69 }, [{ id: "a", lat: 34.40, lon: -119.70 }, { id: "b", lat: 34.42, lon: -119.83 }, { id: "c", lat: 34.3, lon: -119.4 }], async (url) => {
+    asked = url;
+    return { code: "Ok", durations: [[0, 270, 1110, null]], distances: [[0, 2210.8, 17262.5, null]] };
+  });
+  assert.strictEqual(asked, "https://router.project-osrm.org/table/v1/driving/-119.69000,34.41000;-119.70000,34.40000;-119.83000,34.42000;-119.40000,34.30000?sources=0&annotations=duration,distance");
+  assert.deepStrictEqual(drives, { a: { minutes: 5, km: 2.2 }, b: { minutes: 19, km: 17.3 } });
+  await assert.rejects(getDriveTimes({ lat: 0, lon: 0 }, [{ id: "a", lat: 1, lon: 1 }], async () => ({ code: "NoTable" })), /Routing failed/);
+});

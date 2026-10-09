@@ -2,6 +2,7 @@
 // Pure functions, no DOM, so it can be tested in Node.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MIN_MS_C = 60 * 1000;
 const FIRST_HOUR = 6; // the hour-by-hour forecast covers 6 a.m. ...
 const LAST_HOUR = 20; // ... to 8 p.m.
 
@@ -116,6 +117,30 @@ function daySummary(hours) {
   return quiet.length ? `${peakText} · quieter ${quiet.join(" and ")}` : peakText;
 }
 
+// How much longer than an empty-road drive to expect at this time: weekday commute hours, and
+// weekend middays when everyone heads to the coast. A rough rule, labelled "about" on the page.
+function trafficFactor(date) {
+  const h = date.getHours();
+  const weekend = date.getDay() === 0 || date.getDay() === 6;
+  if (weekend) return h >= 10 && h < 17 ? 1.2 : 1;
+  if ((h >= 7 && h < 9) || (h >= 16 && h < 19)) return 1.35;
+  return 1;
+}
+
+// When to leave to arrive at `arrival` (ms), for a drive of `minutes` on empty roads.
+// Traffic is judged at the departure time, so it's worked out twice to settle.
+function leaveTime(arrival, minutes) {
+  let drive = minutes * trafficFactor(new Date(arrival - minutes * MIN_MS_C));
+  drive = minutes * trafficFactor(new Date(arrival - drive * MIN_MS_C));
+  return { leave: arrival - Math.round(drive) * MIN_MS_C, drive: Math.round(drive) };
+}
+
+// The first hour of `day` (from dayForecast) that's expected busy, after `now`; null if none.
+function busyFrom(day, now = Date.now(), busy = 3.5) {
+  const first = day.find((h) => h.crowd >= busy);
+  return first && first.time > now ? first.time : null;
+}
+
 if (typeof module !== "undefined") {
-  module.exports = { tideTurns, tideAt, surfLabel, marineAt, sunTimes, dayForecast, daySummary, hourText, FIRST_HOUR, LAST_HOUR };
+  module.exports = { trafficFactor, leaveTime, busyFrom, tideTurns, tideAt, surfLabel, marineAt, sunTimes, dayForecast, daySummary, hourText, FIRST_HOUR, LAST_HOUR };
 }

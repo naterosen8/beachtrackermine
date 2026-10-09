@@ -74,6 +74,11 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
 - **Estimates** (`js/crowd.js`): typical hourly pattern × weekend boost × season (flipped south of
   the equator) × weather, blended with the beach's own past reports once there are at least 3.
 - **Directions**: opens Google Maps driving directions to the beach.
+- **Leave by**: road drive times from the searched place to every beach in one request to the public
+  [OSRM](https://project-osrm.org/) router (OpenStreetMap roads; within its fair-use policy, one
+  request per search), falling back to a straight-line estimate. Typical traffic is added by rule
+  (weekday 7–9 AM and 4–7 PM: +35%; weekend 10 AM–5 PM: +20%). Each card says when to leave to arrive
+  at the chosen time and, when the forecast says it gets busy later, when to leave to beat the crowd.
 - **My beaches and filters**: star beaches to keep them (saved on this device), and filter to your
   beaches, lifeguarded beaches, dog-friendly beaches or free parking.
 - **Alerts** (`js/alerts.js`, `api/alerts.js`, `sw.js`): tap "Alert me" on a beach to get a

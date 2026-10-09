@@ -228,6 +228,24 @@ function parseMarine(beaches, results) {
   return out;
 }
 
+// Road driving times from `origin` to each beach, from the public OSRM router (OpenStreetMap roads,
+// no traffic): { beachId: { minutes, km } }. One request for up to DRIVE_MAX_BEACHES beaches.
+const DRIVE_MAX_BEACHES = 60;
+async function getDriveTimes(origin, beaches, fetchJson = getJson) {
+  const some = beaches.slice(0, DRIVE_MAX_BEACHES);
+  if (!some.length) return {};
+  const points = [origin, ...some].map((p) => `${p.lon.toFixed(5)},${p.lat.toFixed(5)}`).join(";");
+  const json = await fetchJson(`https://router.project-osrm.org/table/v1/driving/${points}?sources=0&annotations=duration,distance`);
+  if (json.code !== "Ok") throw new Error(`Routing failed (${json.code})`);
+  const out = {};
+  some.forEach((b, i) => {
+    const seconds = json.durations[0][i + 1];
+    const meters = json.distances ? json.distances[0][i + 1] : null;
+    if (Number.isFinite(seconds)) out[b.id] = { minutes: Math.max(1, Math.round(seconds / 60)), km: Number.isFinite(meters) ? Math.round(meters / 100) / 10 : null };
+  });
+  return out;
+}
+
 // Santa Barbara County's weekly ocean water testing (Environmental Health Services), from the
 // public map layer behind countyofsb.org/ch-ocean-water-monitoring-program.
 const WATER_LAYER = "https://services.arcgis.com/KkJhFbLnXVqahKz2/arcgis/rest/services/Ocean_Water_Quality_Points_Public/FeatureServer/0/query";
@@ -413,5 +431,5 @@ async function sendVote({ beachId, reportId, vote }) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports };
+  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes };
 }
