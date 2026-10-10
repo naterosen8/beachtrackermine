@@ -519,6 +519,13 @@ function card(v, reportOpen, when, alertOpen) {
   node.querySelector(".directions").href =
     `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving`;
 
+  // Clicking the card itself (not its buttons, links or forms) shows the beach on the map.
+  node.addEventListener("click", (e) => {
+    if (e.target.closest("button, a, input, select, textarea, label, form, details, .bars, .thumb")) return;
+    if (window.getSelection && String(window.getSelection())) return; // selecting text, not clicking
+    showOnMap(beach.id);
+  });
+  if (beach.id === selectedId) node.classList.add("selected");
   dayBars(node, day, when);
   node.querySelector(".share").addEventListener("click", (e) => shareBeach(beach, e.currentTarget));
   buildReportForm(node, beach, reportOpen);
@@ -1200,6 +1207,8 @@ function buildReportForm(node, beach, open) {
 
 
 let lastFit = "";
+let markerById = new Map(); // beach id -> its map marker
+let selectedId = null; // the beach last picked from the list, highlighted on the map
 
 function drawMap(views) {
   if (!window.L || !state.center) return;
@@ -1214,6 +1223,7 @@ function drawMap(views) {
     markers = L.layerGroup().addTo(map);
   }
   markers.clearLayers();
+  markerById = new Map();
   L.marker([state.center.lat, state.center.lon], {
     icon: L.divIcon({ className: "pin-you", html: "<span></span>", iconSize: [18, 18] }),
     keyboard: false,
@@ -1222,8 +1232,8 @@ function drawMap(views) {
     const level = Math.min(5, Math.max(1, Math.round(v.crowd)));
     const popup = el("div", null, "pop");
     popup.append(el("strong", v.beach.name), el("span", `${crowdLabel(v.crowd)} · ${v.useLive ? "live" : "estimate"}`, `pop-badge level-${level}`));
-    L.marker([v.beach.lat, v.beach.lon], {
-      icon: L.divIcon({ className: `pin level-${level}${v.useLive ? " live" : ""}`, html: "<span></span>", iconSize: [26, 26] }),
+    const marker = L.marker([v.beach.lat, v.beach.lon], {
+      icon: L.divIcon({ className: `pin level-${level}${v.useLive ? " live" : ""}${v.beach.id === selectedId ? " selected" : ""}`, html: "<span></span>", iconSize: [26, 26] }),
       title: `${v.beach.name}: ${crowdLabel(v.crowd)}`,
       riseOnHover: true,
     })
@@ -1233,6 +1243,7 @@ function drawMap(views) {
         if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
       })
       .addTo(markers);
+    markerById.set(v.beach.id, marker);
   }
   map.invalidateSize(); // the map's box may have changed size (layout, first show) since last time
   // Refit only when the set of beaches changes, so refreshes don't undo someone's panning.
@@ -1242,6 +1253,27 @@ function drawMap(views) {
     const points = [[state.center.lat, state.center.lon], ...views.map((v) => [v.beach.lat, v.beach.lon])];
     map.fitBounds(points, { padding: [36, 36], maxZoom: 14 });
   }
+}
+
+// Flies the map to a beach picked from the list, opens its label and highlights its pin.
+// Where the map isn't beside the list (phones), it scrolls up to the map first.
+function showOnMap(beachId) {
+  const marker = markerById.get(beachId);
+  if (!map || !marker) return;
+  const previous = selectedId && markerById.get(selectedId);
+  if (previous && previous.getElement()) previous.getElement().classList.remove("selected");
+  selectedId = beachId;
+  if (marker.getElement()) marker.getElement().classList.add("selected");
+  for (const c of document.querySelectorAll(".card.selected")) c.classList.remove("selected");
+  const card = document.querySelector(`.card[data-id="${CSS.escape(beachId)}"]`);
+  if (card) card.classList.add("selected");
+  const box = $("map").getBoundingClientRect();
+  const onScreen = box.top >= 0 && box.bottom <= window.innerHeight + 40;
+  if (!onScreen && getComputedStyle($("map").parentElement).position !== "sticky") {
+    $("map").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 15), { duration: 0.9 });
+  map.once("moveend", () => marker.openPopup());
 }
 
 // --- Loading ---------------------------------------------------------------
