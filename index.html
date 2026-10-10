@@ -3,95 +3,258 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Beach Check</title>
+  <title>Beach Check · Santa Barbara beach crowds, parking & conditions</title>
   <meta name="description" content="How busy are the beaches near you? Live reports from beachgoers, parking, weather and directions.">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="beach.css">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <meta name="theme-color" content="#0e7c86">
+  <meta name="theme-color" content="#0b2540">
   <meta name="apple-mobile-web-app-title" content="Beach Check">
 </head>
 <body>
-  <main class="wrap">
-    <p class="eyebrow">Beach Check · Santa Barbara</p>
-    <h1>Which Santa Barbara beach is worth the trip?</h1>
-    <p class="lede">See how crowded nearby beaches are, from reports by people there right now. When nobody has reported, we estimate from the time, season, weather and past reports.</p>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./" aria-label="Beach Check home">
+        <img src="icon.svg" alt="" width="32" height="32">
+        <span>Beach Check</span>
+      </a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#beaches">Beaches</a>
+        <a href="#map">Map</a>
+        <a href="#leaders">Top reporters</a>
+      </nav>
+      <button type="button" class="locate-top" id="near-me-top" aria-label="Use my location">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/></svg>
+        <span>Near me</span>
+      </button>
+    </div>
+  </header>
 
-    <form id="where" class="where">
-      <button type="button" id="near-me" class="primary">Use my location</button>
-      <span class="or">or</span>
-      <input id="place" type="search" placeholder="Town or zip, e.g. Goleta" aria-label="Town or zip code" autocomplete="off">
-      <button type="submit">Search</button>
-    </form>
+  <section class="hero">
+    <svg class="hero-art" viewBox="0 0 1440 620" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <defs>
+        <radialGradient id="sunGlow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#ffd27a" stop-opacity=".9"/>
+          <stop offset=".35" stop-color="#ffb347" stop-opacity=".35"/>
+          <stop offset="1" stop-color="#ff9a3c" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1b7f93"/>
+          <stop offset="1" stop-color="#0b3d55"/>
+        </linearGradient>
+        <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#ffd27a" stop-opacity="0"/>
+          <stop offset=".5" stop-color="#ffd27a" stop-opacity=".55"/>
+          <stop offset="1" stop-color="#ffd27a" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <circle cx="1110" cy="300" r="260" fill="url(#sunGlow)"/>
+      <circle cx="1110" cy="300" r="62" fill="#ffd88a"/>
+      <path class="ridge-far" d="M0 360 L120 318 L230 334 L340 290 L470 322 L560 300 L690 330 L800 286 L930 316 L1040 296 L1170 330 L1290 300 L1440 326 V420 H0 Z"/>
+      <path class="ridge-near" d="M0 392 L90 370 L210 384 L300 356 L420 380 L540 362 L660 388 L780 366 L900 390 L1010 372 L1130 394 L1250 374 L1360 390 L1440 380 V430 H0 Z"/>
+      <g class="palms">
+        <path d="M212 402 C214 380 216 360 214 338"/><path d="M214 338 c-18 -6 -30 2 -38 10 M214 338 c16 -10 30 -6 38 2 M214 338 c-6 -14 -2 -24 6 -30 M214 338 c-14 4 -22 14 -24 22 M214 338 c12 2 22 10 26 20"/>
+        <path d="M246 404 C247 388 249 372 248 356"/><path d="M248 356 c-14 -4 -24 2 -30 8 M248 356 c12 -8 24 -4 30 2 M248 356 c-4 -10 0 -18 6 -22 M248 356 c-10 4 -16 10 -18 18"/>
+      </g>
+      <rect y="410" width="1440" height="210" fill="url(#sea)"/>
+      <rect x="930" y="414" width="360" height="5" fill="url(#shine)"/>
+      <rect x="980" y="430" width="260" height="4" fill="url(#shine)" opacity=".7"/>
+      <rect x="1030" y="448" width="160" height="3" fill="url(#shine)" opacity=".5"/>
+      <g class="wharf">
+        <rect x="900" y="404" width="300" height="5" rx="1"/>
+        <path d="M915 409v14M945 409v14M975 409v14M1005 409v14M1035 409v14M1065 409v14M1095 409v14M1125 409v14M1155 409v14M1185 409v14"/>
+        <rect x="1130" y="392" width="44" height="12" rx="2"/>
+      </g>
+      <path class="wave w1" d="M0 470 C120 458 240 482 360 470 S600 458 720 470 S960 482 1080 470 S1320 458 1440 470 S1680 482 1800 470 S2040 458 2160 470 S2400 482 2520 470 S2760 458 2880 470 V620 H0 Z"/>
+      <path class="wave w2" d="M0 520 C140 506 280 534 420 520 S700 506 840 520 S1120 534 1260 520 S1540 506 1680 520 S1960 534 2100 520 S2380 506 2520 520 S2800 534 2880 520 V620 H0 Z"/>
+      <path class="wave w3" d="M0 572 C160 560 320 586 480 572 S800 560 960 572 S1280 586 1440 572 S1760 560 1920 572 S2240 586 2400 572 S2720 560 2880 572 V620 H0 Z"/>
+    </svg>
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="live-dot"></span>Live beach conditions · Santa Barbara</p>
+        <h1>Find a beach that <em>isn't</em> packed.</h1>
+        <p class="lede">Crowds and parking reported live by beachgoers, with official water quality, surf, tides and the best time to go.</p>
+        <form id="where" class="where" role="search">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="place" type="search" size="1" placeholder="Search a town or zip code" aria-label="Town or zip code" autocomplete="off">
+            <button type="submit" class="primary">Search</button>
+          </div>
+          <button type="button" id="near-me" class="link-light">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/></svg>
+            Use my location
+          </button>
+        </form>
+        <div class="quick" aria-label="Popular places">
+          <span>Popular</span>
+          <button type="button" data-place="Santa Barbara, CA">Santa Barbara</button>
+          <button type="button" data-place="Goleta, CA">Goleta</button>
+          <button type="button" data-place="Carpinteria, CA">Carpinteria</button>
+          <button type="button" data-place="Summerland, CA">Summerland</button>
+        </div>
+      </div>
+      <aside class="now-panel" id="now-panel" aria-live="polite">
+        <div class="now-head">
+          <span class="now-title">Right now</span>
+          <span class="now-time" id="now-time"></span>
+        </div>
+        <ol class="now-list" id="now-list">
+          <li class="sk"><span></span><span></span></li>
+          <li class="sk"><span></span><span></span></li>
+          <li class="sk"><span></span><span></span></li>
+        </ol>
+        <dl class="now-stats" id="now-stats"></dl>
+      </aside>
+    </div>
+  </section>
 
-    <div class="plan" id="plan" hidden>
-      <label>Going
-        <select id="day" aria-label="Day"></select>
-        <select id="time" aria-label="Time"></select>
-      </label>
-      <label>Sort by
-        <select id="sort">
-          <option value="best" selected>best pick</option>
-          <option value="distance">closest</option>
-          <option value="quiet">least crowded</option>
-          <option value="parking">easiest parking</option>
-        </select>
-      </label>
-      <label>Within
-        <select id="radius">
-          <option value="10">10 km</option>
-          <option value="25" selected>25 km</option>
-          <option value="50">50 km</option>
-        </select>
-      </label>
-      <fieldset class="filters">
-        <legend class="sr-only">Show only</legend>
+  <main class="page">
+    <div class="toolbar" id="plan" hidden>
+      <div class="controls">
+        <label class="control">
+          <span>When</span>
+          <span class="control-row">
+            <select id="day" aria-label="Day"></select>
+            <select id="time" aria-label="Time"></select>
+          </span>
+        </label>
+        <label class="control">
+          <span>Sort by</span>
+          <select id="sort">
+            <option value="best" selected>Best pick</option>
+            <option value="distance">Closest</option>
+            <option value="quiet">Least crowded</option>
+            <option value="parking">Easiest parking</option>
+          </select>
+        </label>
+        <label class="control">
+          <span>Within</span>
+          <select id="radius">
+            <option value="10">10 km</option>
+            <option value="25" selected>25 km</option>
+            <option value="50">50 km</option>
+          </select>
+        </label>
+      </div>
+      <div class="filters" role="group" aria-label="Show only">
         <label class="chip"><input type="checkbox" id="f-fav"><span>★ My beaches</span></label>
-        <label class="chip"><input type="checkbox" id="f-guard"><span>Lifeguards</span></label>
-        <label class="chip"><input type="checkbox" id="f-dogs"><span>Dogs OK</span></label>
-        <label class="chip"><input type="checkbox" id="f-free"><span>Free parking</span></label>
         <label class="chip"><input type="checkbox" id="f-water"><span>No water warnings</span></label>
+        <label class="chip"><input type="checkbox" id="f-guard"><span>Lifeguards</span></label>
         <label class="chip"><input type="checkbox" id="f-restrooms"><span>Restrooms</span></label>
         <label class="chip"><input type="checkbox" id="f-showers"><span>Showers</span></label>
         <label class="chip"><input type="checkbox" id="f-food"><span>Food</span></label>
+        <label class="chip"><input type="checkbox" id="f-free"><span>Free parking</span></label>
+        <label class="chip"><input type="checkbox" id="f-dogs"><span>Dogs OK</span></label>
         <label class="chip"><input type="checkbox" id="f-firepits"><span>Fire rings</span></label>
-      </fieldset>
-    </div>
-
-    <div class="statusbar">
-      <p id="status" class="status" role="status"></p>
-      <button type="button" id="refresh" class="small" hidden>Refresh</button>
-    </div>
-    <p id="shared-note" class="fine" hidden>Reports are saved on this device only until the shared report store is set up (see README).</p>
-
-    <section id="heads-up" class="heads-up" hidden>
-      <h2>Your beaches today</h2>
-      <ul></ul>
-      <div class="morning">
-        <button type="button" id="morning-toggle" aria-pressed="false">☀️ Morning summary: off</button>
-        <span id="morning-msg" class="fine" role="status"></span>
       </div>
-    </section>
+    </div>
 
-    <div id="map" class="map" hidden></div>
-    <ol id="beaches" class="beaches"></ol>
+    <div class="layout">
+      <div class="main-col">
+        <div class="section-head">
+          <h2 id="list-title">Beaches near Santa Barbara</h2>
+        </div>
+        <div class="statusbar">
+          <p id="status" class="status" role="status"></p>
+          <button type="button" id="refresh" class="ghost small" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
+            Refresh
+          </button>
+        </div>
+        <p id="shared-note" class="notice" hidden>Reports you send are saved on this device for now. Shared live reports are coming soon.</p>
 
-    <section id="leaders" class="leaders" hidden>
-      <h2>Top reporters this week</h2>
-      <ol class="board"></ol>
-      <p class="my-points"></p>
-      <form id="name-form" class="name-form">
-        <label>Your name on the board <input name="name" maxlength="20" autocomplete="nickname" placeholder="e.g. Sandy Toes"></label>
-        <button type="submit">Save</button>
-        <span class="name-msg" role="status"></span>
-      </form>
-      <p class="fine">+10 points for each report, +2 when someone confirms it, −2 when someone flags it. A new board starts every Monday.</p>
-    </section>
+        <section id="heads-up" class="panel heads-up" hidden>
+          <div class="panel-head">
+            <h2>Your beaches today</h2>
+            <button type="button" id="morning-toggle" class="ghost small" aria-pressed="false">☀️ Morning summary: off</button>
+          </div>
+          <ul></ul>
+          <p id="morning-msg" class="fine" role="status"></p>
+        </section>
 
-    <p class="fine">Beaches and parking from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors. Weather, waves, water temperature and tides from <a href="https://open-meteo.com/">Open-Meteo</a> (tides are modelled: check a tide table before tidepooling or walking around points). Ocean water testing from <a href="https://www.countyofsb.org/ch-ocean-water-monitoring-program">Santa Barbara County Environmental Health</a> (hotline 805-681-4949). Live street-meter occupancy in Los Angeles from <a href="https://data.lacity.org/">LADOT open data</a>. Crowd estimates are guesses: check live reports and conditions before you go, and swim near lifeguards.</p>
+        <ol id="beaches" class="beaches">
+          <li class="card skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></li>
+          <li class="card skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></li>
+          <li class="card skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></li>
+        </ol>
+
+        <section id="leaders" class="panel leaders" hidden>
+          <div class="panel-head"><h2>Top reporters this week</h2></div>
+          <ol class="board"></ol>
+          <p class="my-points"></p>
+          <form id="name-form" class="name-form">
+            <label>Your name on the board <input name="name" maxlength="20" autocomplete="nickname" placeholder="e.g. Sandy Toes"></label>
+            <button type="submit">Save</button>
+            <span class="name-msg" role="status"></span>
+          </form>
+          <p class="fine">+10 points for each report, +2 when someone confirms it, −2 when someone flags it. A new board starts every Monday.</p>
+        </section>
+      </div>
+
+      <aside class="map-col">
+        <div id="map" class="map" hidden></div>
+        <div class="legend" aria-label="Map colors">
+          <span><i class="dot l1"></i>Empty</span><span><i class="dot l2"></i>Quiet</span><span><i class="dot l3"></i>Moderate</span><span><i class="dot l4"></i>Busy</span><span><i class="dot l5"></i>Packed</span>
+        </div>
+      </aside>
+    </div>
   </main>
+
+  <section class="how" aria-labelledby="how-title">
+    <div class="how-inner">
+      <h2 id="how-title">How Beach Check works</h2>
+      <div class="how-grid">
+        <div class="how-item">
+          <span class="how-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 20h5v-2a3 3 0 0 0-5.36-1.86M17 20H7m10 0v-2c0-.66-.13-1.28-.36-1.86M7 20H2v-2a3 3 0 0 1 5.36-1.86M7 20v-2c0-.66.13-1.28.36-1.86m0 0a5 5 0 0 1 9.28 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg></span>
+          <h3>Live from the sand</h3>
+          <p>Beachgoers report crowds, parking and photos in seconds. Votes weed out bad reports.</p>
+        </div>
+        <div class="how-item">
+          <span class="how-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18M7 15l4-4 3 3 5-6"/></svg></span>
+          <h3>Smart estimates</h3>
+          <p>No reports yet? We forecast the crowd hour by hour from the season, weather and each beach's history.</p>
+        </div>
+        <div class="how-item">
+          <span class="how-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 4 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 3-7 6-11z"/><path d="m9.5 14 1.8 1.8 3.4-3.6"/></svg></span>
+          <h3>Official conditions</h3>
+          <p>County water testing, surf, tides and road drive times, all in one place before you leave.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <a class="brand" href="./"><img src="icon.svg" alt="" width="28" height="28"><span>Beach Check</span></a>
+        <p>Crowds, parking and conditions for Santa Barbara beaches, powered by beachgoers.</p>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <h3>Data sources</h3>
+          <ul>
+            <li><a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>: beaches, parking, amenities</li>
+            <li><a href="https://open-meteo.com/">Open-Meteo</a>: weather, waves, water temperature, tides</li>
+            <li><a href="https://www.countyofsb.org/ch-ocean-water-monitoring-program">SB County Environmental Health</a>: ocean water testing (hotline 805-681-4949)</li>
+            <li><a href="https://project-osrm.org/">OSRM</a>: driving times · <a href="https://data.lacity.org/">LADOT</a>: LA street meters</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Good to know</h3>
+          <ul>
+            <li>Crowd estimates are guesses; live reports beat them.</li>
+            <li>Tides are modelled: check a tide table before tidepooling.</li>
+            <li>Swim near lifeguards and check posted signs.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <dialog id="photo-view" class="photo-view">
     <form method="dialog"><button aria-label="Close photo">✕</button></form>
@@ -102,27 +265,35 @@
   <template id="beach-card">
     <li class="card">
       <div class="card-head">
-        <h2 class="name"></h2>
-        <span class="away"></span>
+        <div class="card-title">
+          <h2 class="name"></h2>
+          <p class="away"></p>
+        </div>
         <button type="button" class="fav" aria-pressed="false">☆</button>
       </div>
       <div class="crowd">
-        <span class="meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
         <strong class="crowd-label"></strong>
         <span class="tag"></span>
+        <span class="meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
       </div>
       <p class="basis"></p>
+      <div class="card-alerts"></div>
+      <div class="leave-row"></div>
+      <div class="stats"></div>
       <div class="day-forecast">
         <div class="bars" role="group" aria-label="Crowd estimate by hour"></div>
         <p class="day-summary"></p>
       </div>
-      <ul class="facts"></ul>
+      <details class="more">
+        <summary>More details</summary>
+        <ul class="facts"></ul>
+      </details>
       <details class="reports-list" hidden>
         <summary></summary>
         <ul></ul>
       </details>
       <div class="actions">
-        <a class="button directions" target="_blank" rel="noopener">Directions</a>
+        <a class="button primary directions" target="_blank" rel="noopener">Directions</a>
         <button type="button" class="report-toggle">I'm here: report</button>
         <button type="button" class="alert-toggle" aria-expanded="false">🔔 Alert me</button>
         <button type="button" class="share">Share</button>

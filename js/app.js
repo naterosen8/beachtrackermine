@@ -39,6 +39,7 @@ const state = {
   openLists: new Map(), // beachId -> whether its report list is open, once someone toggles it
 };
 let focusId = params.get("beach"); // a shared link points at this beach
+let highlight = null; // { id, until }: the card picked last, outlined for a few seconds
 let map = null;
 let markers = null;
 
@@ -361,6 +362,9 @@ function render() {
   const openAlert = list.querySelector(".alert-form:not([hidden])");
   const openAlertId = openAlert && openAlert.closest(".card").dataset.id;
   list.replaceChildren(...views.map((v) => card(v, v.beach.id === openId, when, v.beach.id === openAlertId)));
+  if ($("sort").value === "best" && views.length > 1 && list.firstElementChild) list.firstElementChild.classList.add("best");
+  $("list-title").textContent = state.center ? `Beaches near ${state.center.label === "you" ? "you" : state.center.label.split(",")[0]}` : "Beaches";
+  nowPanel();
   if (state.beaches.length && !shown.length) {
     list.append(el("li", $("f-fav").checked && !state.favorites.size
       ? "Tap ☆ on a beach to add it to your beaches."
@@ -424,6 +428,7 @@ function showFocus() {
   const target = document.querySelector(`.card[data-id="${CSS.escape(focusId)}"]`);
   if (!target) return;
   focusId = null;
+  highlight = { id: target.dataset.id, until: Date.now() + 5000 }; // survives the next few re-renders
   target.classList.add("focus");
   target.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -434,15 +439,17 @@ function card(v, reportOpen, when, alertOpen) {
   const level = Math.min(5, Math.max(1, Math.round(crowd)));
   node.dataset.id = beach.id;
   node.classList.add(`level-${level}`);
+  if (highlight && highlight.id === beach.id && Date.now() < highlight.until) node.classList.add("focus");
   node.querySelector(".name").textContent = beach.name;
   node.querySelector(".away").textContent = drive.estimate
     ? `${fmtDistance(beach.distanceKm)} · ~${drive.minutes} min drive`
     : `${fmtDistance(drive.km != null ? drive.km : beach.distanceKm)} by road · ${drive.minutes} min drive`;
   node.querySelector(".crowd-label").textContent = crowdLabel(crowd);
+  node.querySelector(".crowd").prepend(gauge(crowd));
   node.querySelector(".meter").dataset.level = level;
   const fav = node.querySelector(".fav");
   const saved = state.favorites.has(beach.id);
-  fav.textContent = saved ? "★" : "☆";
+  fav.replaceChildren(icon(saved ? "starFilled" : "star"));
   fav.setAttribute("aria-pressed", String(saved));
   fav.setAttribute("aria-label", saved ? `Remove ${beach.name} from my beaches` : `Save ${beach.name} to my beaches`);
   fav.title = saved ? "Saved to my beaches" : "Save to my beaches";
@@ -455,8 +462,16 @@ function card(v, reportOpen, when, alertOpen) {
     ? `${live.count} report${live.count > 1 ? "s" : ""} from beachgoers, newest ${ago(live.newest)}`
     : `No live reports${live && !useLive ? " for then" : ""}. Based on: ${est.reasons.join(" · ")}`;
 
+  const leaveRow = node.querySelector(".leave-row");
+  for (const line of leaveLines(drive, when, day)) {
+    const row = el("p", null, line.className);
+    row.append(icon(line.classList.contains("beat") ? "sparkle" : "car"), document.createTextNode(line.textContent));
+    leaveRow.append(row);
+  }
+  cardAlerts(node.querySelector(".card-alerts"), v);
+  statTiles(node.querySelector(".stats"), v, when);
+
   const facts = node.querySelector(".facts");
-  for (const line of leaveLines(drive, when, day)) facts.append(line);
   facts.append(el("li", `Parking: ${parking.text}`));
   if (meters) {
     facts.append(el("li", `Street meters within ${imperial ? "½ mile" : "800 m"}: ${meters.free} of ${meters.total} free right now ` +
@@ -509,6 +524,111 @@ function card(v, reportOpen, when, alertOpen) {
   buildReportForm(node, beach, reportOpen);
   buildAlertForm(node, beach, alertOpen);
   return node;
+}
+
+// A ring that fills with the crowd level (1–5), number in the middle.
+function gauge(crowd) {
+  const level = Math.min(5, Math.max(1, Math.round(crowd)));
+  const wrap = el("span", null, "gauge");
+  wrap.setAttribute("aria-hidden", "true");
+  const pct = Math.round((Math.min(5, Math.max(1, crowd)) / 5) * 100);
+  wrap.innerHTML = `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.5" pathLength="100" class="g-bg"/><circle cx="18" cy="18" r="15.5" pathLength="100" class="g-fg" stroke-dasharray="${pct} 100"/></svg><b>${level}</b>`;
+  return wrap;
+}
+
+// "Right now" in the hero: the three best picks for going now, plus a few live numbers.
+function nowPanel() {
+  const list = $("now-list");
+  if (!state.beaches.length) return;
+  const now = new Date();
+  const views = state.beaches.map((b) => describe(b, now)).sort(SORTS.best);
+  list.replaceChildren(...views.slice(0, 3).map((v, i) => {
+    const level = Math.min(5, Math.max(1, Math.round(v.crowd)));
+    const li = el("li", null, `level-${level}`);
+    const b = el("button", null, "now-item");
+    b.type = "button";
+    const name = el("span", null, "now-name");
+    name.append(el("strong", v.beach.name), el("span", `${v.drive.minutes} min drive${i === 0 ? " · best pick" : ""}`));
+    b.append(el("span", String(i + 1), "now-rank"), name, el("span", `${crowdLabel(v.crowd)}${v.useLive ? " · live" : ""}`, "now-badge"));
+    b.addEventListener("click", () => {
+      for (const id of FILTERS) $(id).checked = false;
+      focusId = v.beach.id;
+      render();
+    });
+    li.append(b);
+    return li;
+  }));
+  const live = views.reduce((n, v) => n + (v.live ? v.live.count : 0), 0);
+  const warnings = views.filter((v) => v.waterLevel === "warning" || v.waterLevel === "closed").length;
+  const stats = [[String(state.beaches.length), "beaches"], [String(live), live === 1 ? "live report" : "live reports"], [String(warnings), warnings === 1 ? "water warning" : "water warnings"]];
+  $("now-stats").replaceChildren(...stats.flatMap(([n, label]) => {
+    const d = el("div");
+    d.append(el("dt", label), el("dd", n));
+    return [d];
+  }));
+  $("now-time").textContent = `Updated ${fmtClock(Date.now())}`;
+}
+
+// --- Card pieces: icons, stat tiles, warnings ------------------------------------
+
+// Simple line icons (24×24, drawn with the current text color).
+const ICONS = {
+  car: '<path d="M5 17h14M6 17l1.5-5h9L18 17M7.5 12 9 8h6l1.5 4"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/>',
+  sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  parking: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M10 16V8h3a2.5 2.5 0 0 1 0 5h-3"/>',
+  drop: '<path d="M12 3c3 4 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 3-7 6-11z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>',
+  waves: '<path d="M2 9c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2M2 15c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2"/>',
+  thermo: '<path d="M10 14V5a2 2 0 1 1 4 0v9a4 4 0 1 1-4 0z"/>',
+  tide: '<path d="M3 17c3 0 3-2 6-2s3 2 6 2 3-2 6-2M12 3v9M8.5 8.5 12 12l3.5-3.5"/>',
+  sunset: '<path d="M3 18h18M7 18a5 5 0 0 1 10 0M12 4v4M5 9l1.5 1.5M19 9l-1.5 1.5M9 6l3-2 3 2"/>',
+  alert: '<path d="M12 3 2 20h20L12 3zM12 10v4M12 17h.01"/>',
+  star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  starFilled: '<path fill="currentColor" d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+};
+
+function icon(name) {
+  const span = el("span", null, "icon");
+  span.setAttribute("aria-hidden", "true");
+  span.innerHTML = `<svg viewBox="0 0 24 24">${ICONS[name]}</svg>`; // fixed strings above, never user data
+  return span;
+}
+
+// The key facts as small labelled tiles: parking, water quality, weather, surf, water, tide, sunset.
+function statTiles(box, v, when) {
+  const { parking, waterLevel, weather, sea, tide, sun } = v;
+  const tile = (name, label, value, note, tone) => {
+    const t = el("div", null, `stat${tone ? ` stat-${tone}` : ""}`);
+    const top = el("span", null, "stat-label");
+    top.append(icon(name), document.createTextNode(label));
+    t.append(top, el("strong", value, "stat-value"));
+    if (note) t.append(el("span", note, "stat-note"));
+    box.append(t);
+  };
+  const [lots, ...fees] = parking.text.split(" · ");
+  tile("parking", "Parking", lots, fees.join(" · "), parking.score <= 0.5 ? "warn" : null);
+  if (waterLevel !== "unknown") {
+    tile("drop", "Water quality", { open: "Clean", warning: "Warning", closed: "Closed" }[waterLevel] || "Unknown",
+      waterLevel === "open" ? "Meets health standards" : "County advises no swimming", waterLevel === "open" ? "ok" : "bad");
+  }
+  if (weather) tile("sun", "Weather", fmtTemp(weather.tempC), `${Math.round(weather.precipProb || 0)}% rain${weather.uv != null ? ` · UV ${Math.round(weather.uv)}` : ""}`);
+  if (sea && sea.waveM != null) tile("waves", "Surf", fmtHeight(sea.waveM), surfLabel(sea.waveM));
+  if (sea && sea.waterC != null) tile("thermo", "Water temp", fmtTemp(sea.waterC), "approx.");
+  if (tide) tile("tide", "Tide", tide.rising ? "Rising" : "Falling", `${tide.next.type} ${fmtClockOn(tide.next.time, when)}`);
+  if (sun) tile("sunset", "Sunset", fmtClock(sun.sunset), `Sunrise ${fmtClock(sun.sunrise)}`);
+}
+
+// A banner on the card when the county warns about the water, or after heavy rain.
+function cardAlerts(box, v) {
+  const banner = (text) => {
+    const p = el("p", null, "card-alert");
+    p.append(icon("alert"), document.createTextNode(text));
+    box.append(p);
+  };
+  if (v.waterLevel === "closed") banner("Closed to swimming by the county.");
+  else if (v.waterLevel === "warning") banner("Water quality warning: bacteria above state standards.");
+  const rain = state.weather ? recentRainMm(state.weather) : 0;
+  if (rain >= RAIN_ADVISORY_MM) banner("Rain advisory: stay out of the ocean for 72 hours after significant rain.");
 }
 
 // --- Recent reports and votes -------------------------------------------------
@@ -1078,42 +1198,50 @@ function buildReportForm(node, beach, open) {
   });
 }
 
-const LEVEL_COLORS = ["#2a9d8f", "#57b36a", "#e9b949", "#f08a3c", "#d64545"];
+
+let lastFit = "";
 
 function drawMap(views) {
   if (!window.L || !state.center) return;
   $("map").hidden = false;
   if (!map) {
-    map = L.map("map", { scrollWheelZoom: false });
+    map = L.map("map", { scrollWheelZoom: false, zoomControl: false });
+    L.control.zoom({ position: "bottomright" }).addTo(map);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
+      maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
     markers = L.layerGroup().addTo(map);
   }
   markers.clearLayers();
-  L.circleMarker([state.center.lat, state.center.lon], { radius: 6, color: "#1d4ed8", fillOpacity: 1 })
-    .bindTooltip("You")
-    .addTo(markers);
+  L.marker([state.center.lat, state.center.lon], {
+    icon: L.divIcon({ className: "pin-you", html: "<span></span>", iconSize: [18, 18] }),
+    keyboard: false,
+  }).bindTooltip(state.center.label === "you" ? "You" : state.center.label).addTo(markers);
   for (const v of views) {
     const level = Math.min(5, Math.max(1, Math.round(v.crowd)));
-    const popup = el("div");
-    popup.append(el("strong", v.beach.name), el("br"), document.createTextNode(
-      `${crowdLabel(v.crowd)} (${v.useLive ? "live" : "estimate"})`,
-    ));
-    L.circleMarker([v.beach.lat, v.beach.lon], {
-      radius: 10, color: "#fff", weight: 2, fillColor: LEVEL_COLORS[level - 1], fillOpacity: 0.95,
+    const popup = el("div", null, "pop");
+    popup.append(el("strong", v.beach.name), el("span", `${crowdLabel(v.crowd)} · ${v.useLive ? "live" : "estimate"}`, `pop-badge level-${level}`));
+    L.marker([v.beach.lat, v.beach.lon], {
+      icon: L.divIcon({ className: `pin level-${level}${v.useLive ? " live" : ""}`, html: "<span></span>", iconSize: [26, 26] }),
+      title: `${v.beach.name}: ${crowdLabel(v.crowd)}`,
+      riseOnHover: true,
     })
-      .bindPopup(popup)
+      .bindPopup(popup, { closeButton: false, offset: [0, -8] })
       .on("click", () => {
         const target = document.querySelector(`.card[data-id="${CSS.escape(v.beach.id)}"]`);
         if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
       })
       .addTo(markers);
   }
-  const points = [[state.center.lat, state.center.lon], ...views.map((v) => [v.beach.lat, v.beach.lon])];
-  map.fitBounds(points, { padding: [24, 24], maxZoom: 14 });
-  map.invalidateSize();
+  map.invalidateSize(); // the map's box may have changed size (layout, first show) since last time
+  // Refit only when the set of beaches changes, so refreshes don't undo someone's panning.
+  const key = `${state.center.lat},${state.center.lon}|${views.map((v) => v.beach.id).sort().join(",")}`;
+  if (key !== lastFit) {
+    lastFit = key;
+    const points = [[state.center.lat, state.center.lon], ...views.map((v) => [v.beach.lat, v.beach.lon])];
+    map.fitBounds(points, { padding: [36, 36], maxZoom: 14 });
+  }
 }
 
 // --- Loading ---------------------------------------------------------------
@@ -1338,6 +1466,16 @@ $("near-me").addEventListener("click", async () => {
     setStatus(err.message, true);
   }
 });
+
+// "Popular" place buttons in the hero, and the location button in the top bar.
+for (const b of document.querySelectorAll(".quick [data-place]")) {
+  b.addEventListener("click", () => {
+    $("place").value = b.dataset.place;
+    $("where").requestSubmit();
+  });
+}
+$("near-me-top").addEventListener("click", () => $("near-me").click());
+window.addEventListener("resize", () => map && map.invalidateSize());
 
 $("where").addEventListener("submit", async (e) => {
   e.preventDefault();
