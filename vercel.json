@@ -1,5 +1,14 @@
 {
   "crons": [
-    { "path": "/api/morning", "schedule": "0 15 * * *" }
-  ]
+    {
+      "path": "/api/morning",
+      "schedule": "0 15 * * *"
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "claude/**": false
+    }
+  }
 }
