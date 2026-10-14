@@ -1,6 +1,7 @@
 // Local stand-in for Vercel + Upstash, for testing the api/ functions without deploying: serves the
 // repo's static files, runs api/*.js handlers and answers Upstash's REST /pipeline with an in-memory
 // Redis (data is lost on restart). Usage: node tools/devserver.js <repo folder> <port>
+const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const [repo, port] = [process.argv[2], Number(process.argv[3] || 8790)];
