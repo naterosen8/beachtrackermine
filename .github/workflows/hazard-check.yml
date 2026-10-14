@@ -1,0 +1,31 @@
+# Every 15 minutes, asks the site to check for new National Weather Service beach alerts and county
+# beach closures and to notify people who starred those beaches (api/hazards.js).
+# Needs a repository secret CRON_SECRET with the same value as the Vercel environment variable.
+# GitHub may start scheduled runs a few minutes late, and pauses them after 60 days without commits.
+name: Beach safety check
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check hazards and closures
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE: https://beachtrackermine.vercel.app
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::notice::CRON_SECRET isn't set in this repository's secrets yet, so the check was skipped."
+            exit 0
+          fi
+          code=$(curl -sS -o result.json -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "$SITE/api/hazards")
+          cat result.json; echo
+          if [ "$code" = "503" ]; then echo "::notice::The site's push or database settings aren't set up yet."; exit 0; fi
+          test "$code" = "200"

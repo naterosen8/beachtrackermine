@@ -14,6 +14,7 @@ const MINE_KEY = "beachcheck.mine"; // ids of reports sent from this device
 const ALERTED_KEY = "beachcheck.alerted";
 const FAV_INFO_KEY = "beachcheck.favinfo"; // { beachId: { id, name, lat, lon, waterSites? } } for the morning summary
 const MORNING_KEY = "beachcheck.morning"; // true once the morning summary is on
+const SAFETY_KEY = "beachcheck.safety"; // true once safety alerts are on
 const REPORTER_KEY = "beachcheck.reporter"; // this device's private reporter id, for points // { beachId: time of the last alert this page showed }
 const BUSY = 3.5; // the forecast counts as "busy" from here
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -31,6 +32,8 @@ const state = {
   drives: {}, // road drive times from the searched place, by beach id
   amenities: {}, // OpenStreetMap amenities for beaches without a hand-checked list
   tides: {}, // NOAA tide predictions by beach id: { station, turns }
+  hazards: [], // active NWS beach alerts for the zones on screen
+  zones: {}, // NWS land zone by beach id
   updated: null, // when live reports were last fetched
   favorites: new Set(load_(FAVORITES_KEY) || []),
   favInfo: load_(FAV_INFO_KEY) || {},
@@ -144,7 +147,9 @@ const amenitiesOf = (b) => b.amenities || state.amenities[b.id] || null;
 // Beach features the filter chips look for.
 const hasLifeguards = (b) => b.lifeguard === "yes" || !!b.lifeguards;
 const dogFriendly = (b) => b.dogs === "yes" || b.dogs === "leashed" || !!b.dogArea;
-const waterWarning = (b) => ["warning", "closed"].includes(worstWater(waterFor(b, state.water)));
+const zoneOf = (b) => b.zone || state.zones[b.id] || null;
+const hazardsFor = (b) => (zoneOf(b) ? alertsForZone(state.hazards, zoneOf(b)) : []);
+const waterWarning = (b) => ["warning", "closed"].includes(worstWater(waterFor(b, state.water))) || hazardsFor(b).length > 0;
 const freeParking = (b) => (b.lots ? b.lots.some((l) => l.fee === "free") : !!b.freeParking);
 
 function filtered(beaches) {
@@ -172,6 +177,7 @@ function rememberFavorites() {
     if (!state.favorites.has(b.id)) continue;
     const info = { id: b.id, name: b.name, lat: b.lat, lon: b.lon };
     if (b.waterSites) info.waterSites = b.waterSites;
+    if (zoneOf(b)) info.zone = zoneOf(b);
     if (JSON.stringify(state.favInfo[b.id]) !== JSON.stringify(info)) {
       state.favInfo[b.id] = info;
       changed = true;
@@ -220,30 +226,79 @@ async function stopMorning() {
   }
 }
 
-// After the starred beaches change, update the summary quietly (or stop it when none are left).
+// Safety alerts: NWS beach warnings and county closures for the starred beaches (api/hazards.js).
+async function sendSafety(quiet) {
+  const sub = await pushSubscription();
+  if (!sub) throw new Error(demo ? "Safety alerts need the real site." : "Safety alerts aren't set up on this site yet.");
+  const res = await fetch("api/hazards", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subscription: sub.toJSON(), beaches: starredBeaches(), quiet }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error === "not-configured" ? "Safety alerts aren't set up on this site yet." : json.error || "Couldn't turn on safety alerts.");
+}
+
+async function stopSafety() {
+  const reg = "serviceWorker" in navigator && (await navigator.serviceWorker.getRegistration());
+  const sub = reg && (await reg.pushManager.getSubscription());
+  if (sub) {
+    await fetch("api/hazards", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {});
+  }
+}
+
+// After the starred beaches change, update the summary and safety alerts quietly (or stop them when
+// no starred beaches are left).
 let morningTimer = null;
 function syncMorning() {
-  if (!load_(MORNING_KEY)) return;
+  if (!load_(MORNING_KEY) && !load_(SAFETY_KEY)) return;
   clearTimeout(morningTimer);
   morningTimer = setTimeout(() => {
     rememberFavorites();
-    if (!starredBeaches().length) {
-      save_(MORNING_KEY, false);
-      stopMorning();
-      showMorning();
-      return;
+    const none = !starredBeaches().length;
+    if (load_(MORNING_KEY)) {
+      if (none) { save_(MORNING_KEY, false); stopMorning(); } else sendMorning(true).catch(() => {});
     }
-    sendMorning(true).catch(() => {});
+    if (load_(SAFETY_KEY)) {
+      if (none) { save_(SAFETY_KEY, false); stopSafety(); } else sendSafety(true).catch(() => {});
+    }
+    showMorning();
   }, 1500);
 }
 
 function showMorning() {
-  const on = !!load_(MORNING_KEY);
-  const button = $("morning-toggle");
-  button.textContent = `☀️ Morning summary: ${on ? "on" : "off"}`;
-  button.setAttribute("aria-pressed", String(on));
-  button.classList.toggle("on", on);
+  for (const [id, key, label] of [["morning-toggle", MORNING_KEY, "☀️ Morning summary"], ["safety-toggle", SAFETY_KEY, "🚨 Safety alerts"]]) {
+    const on = !!load_(key);
+    const button = $(id);
+    button.textContent = `${label}: ${on ? "on" : "off"}`;
+    button.setAttribute("aria-pressed", String(on));
+    button.classList.toggle("on", on);
+  }
 }
+
+$("safety-toggle").addEventListener("click", async () => {
+  const button = $("safety-toggle");
+  const msg = $("morning-msg");
+  button.disabled = true;
+  try {
+    if (load_(SAFETY_KEY)) {
+      save_(SAFETY_KEY, false);
+      await stopSafety();
+      msg.textContent = "Safety alerts off.";
+    } else {
+      rememberFavorites();
+      msg.textContent = "Turning on…";
+      await sendSafety(false);
+      save_(SAFETY_KEY, true);
+      msg.textContent = "On. You'll get a notification within about 15–30 minutes when the National Weather Service issues a beach warning (rip currents, high surf, coastal flooding, tsunami) or the county closes the water at one of your starred beaches.";
+    }
+  } catch (err) {
+    msg.textContent = err.message;
+  } finally {
+    button.disabled = false;
+    showMorning();
+  }
+});
 
 $("morning-toggle").addEventListener("click", async () => {
   const button = $("morning-toggle");
@@ -316,6 +371,7 @@ function describe(beach, when) {
   const sun = sunTimes(when, beach.lat, beach.lon);
   const water = waterFor(beach, state.water);
   const waterLevel = worstWater(water);
+  const hazards = hazardsFor(beach);
   const day = dayForecast({
     day: when,
     lat: beach.lat,
@@ -328,6 +384,7 @@ function describe(beach, when) {
     drive,
     water,
     waterLevel,
+    hazards,
     sea,
     tide,
     tideSource,
@@ -342,7 +399,9 @@ function describe(beach, when) {
     parking,
     // Lower is better: quieter, closer, easier to park.
     // A water quality warning or closure pushes the beach well down the best picks.
-    score: crowd + drive.minutes / 15 + (3 - parking.score) * 0.5 + (waterLevel === "closed" ? 3 : waterLevel === "warning" ? 1.5 : 0),
+    score: crowd + drive.minutes / 15 + (3 - parking.score) * 0.5 + (waterLevel === "closed" ? 3 : waterLevel === "warning" ? 1.5 : 0) +
+      // An official surf or rip current warning counts like a water warning; a warning-level one more.
+      (hazards.length ? (hazards.some((h) => /Warning/.test(h.event)) ? 3 : 1.5) : 0),
   };
 }
 
@@ -420,6 +479,8 @@ function headsUp() {
       render();
     });
     li.append(link, document.createTextNode(`: ${text}`));
+    const hz = hazardsFor(b);
+    if (hz.length) li.append(el("span", ` · ${hz.map((h) => h.event).join(", ")}`, "water-warning"));
     const wl = worstWater(waterFor(b, state.water));
     if (wl === "warning" || wl === "closed") li.append(el("span", ` · water ${wl === "closed" ? "closed" : "quality warning"}`, "water-warning"));
     if (state.alerts[b.id]) li.append(el("span", " 🔔", "bell"));
@@ -490,6 +551,9 @@ function card(v, reportOpen, when, alertOpen) {
     facts.append(el("li", `Weather then: ${bits.join(", ")}`));
   }
   for (const line of waterLines(water)) facts.append(line);
+  for (const h of v.hazards || []) {
+    if (h.instruction) facts.append(el("li", `${h.event} (NWS): ${h.instruction}`, "water water-warning"));
+  }
   if (sea && sea.waveM != null) {
     const period = sea.periodS ? `, ${Math.round(sea.periodS)} s apart` : "";
     facts.append(el("li", `Surf: ${surfLabel(sea.waveM)} (${fmtHeight(sea.waveM)}${period})`));
@@ -573,8 +637,8 @@ function nowPanel() {
     return li;
   }));
   const live = views.reduce((n, v) => n + (v.live ? v.live.count : 0), 0);
-  const warnings = views.filter((v) => v.waterLevel === "warning" || v.waterLevel === "closed").length;
-  const stats = [[String(state.beaches.length), "beaches"], [String(live), live === 1 ? "live report" : "live reports"], [String(warnings), warnings === 1 ? "water warning" : "water warnings"]];
+  const warnings = views.filter((v) => v.waterLevel === "warning" || v.waterLevel === "closed" || v.hazards.length).length;
+  const stats = [[String(state.beaches.length), "beaches"], [String(live), live === 1 ? "live report" : "live reports"], [String(warnings), warnings === 1 ? "beach with warnings" : "beaches with warnings"]];
   $("now-stats").replaceChildren(...stats.flatMap(([n, label]) => {
     const d = el("div");
     d.append(el("dt", label), el("dd", n));
@@ -639,9 +703,20 @@ function statTiles(box, v, when) {
 function cardAlerts(box, v) {
   const banner = (text) => {
     const p = el("p", null, "card-alert");
-    p.append(icon("alert"), document.createTextNode(text));
+    p.append(icon("alert"), el("span", text, "alert-text"));
     box.append(p);
+    return p;
   };
+  for (const h of v.hazards || []) {
+    const until = h.ends ? ` until ${fmtClockOn(h.ends, Date.now())}` : "";
+    const p = banner(`${h.event}${until}${h.what ? `: ${h.what}` : ""}`);
+    const a = el("a", "National Weather Service");
+    a.href = `https://forecast.weather.gov/MapClick.php?lat=${v.beach.lat.toFixed(4)}&lon=${v.beach.lon.toFixed(4)}`;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.className = "alert-source";
+    p.append(a);
+  }
   if (v.waterLevel === "closed") banner("Closed to swimming by the county.");
   else if (v.waterLevel === "warning") banner("Water quality warning: bacteria above state standards.");
   const rain = state.weather ? recentRainMm(state.weather) : 0;
@@ -1378,6 +1453,23 @@ async function refreshMarine() {
   }
 }
 
+// Official NWS beach hazards for the zones of the beaches on screen. Optional.
+async function refreshHazards() {
+  const beaches = state.beaches;
+  if (demo) return;
+  try {
+    for (const b of beaches.slice(0, 30)) {
+      if (!b.zone && !state.zones[b.id]) state.zones[b.id] = await getBeachZone(b).catch(() => null);
+    }
+    const hazards = await getNwsAlerts(beaches.map(zoneOf).filter(Boolean));
+    if (beaches !== state.beaches) return;
+    state.hazards = hazards;
+    render();
+  } catch {
+    // leave the banners out
+  }
+}
+
 // Official tide predictions from NOAA. Optional: without them the modelled tide is shown.
 async function refreshTides() {
   const beaches = state.beaches;
@@ -1463,6 +1555,7 @@ async function load(center) {
   state.drives = {};
   state.amenities = {};
   state.tides = {};
+  state.hazards = [];
   rememberPlace(center);
   setStatus(`Finding beaches near ${center.label}…`);
   let radius = Number($("radius").value);
@@ -1489,6 +1582,7 @@ async function load(center) {
     refreshWater();
     refreshDrives();
     refreshTides();
+    refreshHazards();
     setStatus(beachesStatus(radius, center));
     findBeaches(center, radius)
       .then(async (found) => {
@@ -1500,6 +1594,7 @@ async function load(center) {
         refreshDrives();
         refreshAmenities();
         refreshTides();
+        refreshHazards();
         setStatus(beachesStatus(radius, center));
       })
       .catch(() => {}); // the hand-checked list is already showing
@@ -1546,6 +1641,7 @@ async function load(center) {
   refreshDrives();
   refreshAmenities();
   refreshTides();
+  refreshHazards();
   setStatus(beachesStatus(radius, center));
 }
 
@@ -1728,6 +1824,7 @@ setInterval(() => {
     refreshReports().then(() => setStatus(beachesStatus(Number($("radius").value), state.center))).catch(() => {});
     refreshMeters();
     refreshLeaders();
+    refreshHazards();
   }
 }, REFRESH_MS);
 

@@ -49,6 +49,11 @@ const TIDE_NOTES = {
 // the county's ocean water monitoring map). West Beach has none of its own; the Mission Creek site
 // is right next to it at Stearns Wharf. Isla Vista and Rincon aren't sampled by the county.
 
+// All ten are in the National Weather Service's "Santa Barbara County Southeastern Coast" land zone
+// (checked October 2026 with api.weather.gov/zones?type=forecast&point=...), where NWS issues beach
+// hazards such as rip current statements and high surf advisories.
+const NWS_ZONE = "CAZ350";
+
 // City waterfront lots: $3.50/hour, $20/day max, 8 a.m. to 10 p.m. (FY2026 fee schedule).
 const CITY_RATE = "$3.50/hr, $20/day max";
 const CITY_HOURS = "8 a.m.–10 p.m.";
@@ -150,6 +155,7 @@ function sbBeaches(center, radiusKm) {
     .map((b) => ({
       ...b,
       curated: true,
+      zone: NWS_ZONE,
       distanceKm: distanceKm(center, b),
       parkingLots: b.lots.filter((l) => !l.street).length,
       parkingSpaces: b.lots.reduce((n, l) => n + (l.spaces || 0), 0),

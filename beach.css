@@ -352,6 +352,8 @@ select { padding-right: 32px; }
 .heads-up .water-warning { color: var(--bad); }
 #morning-msg { margin: 8px 0 0; }
 #morning-msg:empty { display: none; }
+.panel-actions { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+#safety-toggle.on { border-color: var(--bad); color: var(--bad); background: var(--bad-soft); }
 #morning-toggle.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
 
 .leaders .board { margin: 0 0 10px; padding-left: 22px; font-size: 15px; }
@@ -426,7 +428,10 @@ select { padding-right: 32px; }
 
 .card-alerts:empty { display: none; }
 .card-alert { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--bad-soft); color: var(--bad); font-size: 14px; font-weight: 600; }
+.card-alert { flex-wrap: wrap; }
 .card-alert .icon { margin-top: 2px; }
+.card-alert .alert-text { flex: 1 1 0; min-width: 0; }
+.card-alert .alert-source { flex-basis: 100%; padding-left: 24px; font-size: 13px; color: inherit; text-decoration: underline; }
 
 .card-note { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--l3) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--l3) 40%, transparent); font-size: 14px; }
 .card-note p { margin: 4px 0 0; }

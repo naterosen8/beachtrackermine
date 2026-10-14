@@ -290,6 +290,37 @@ async function getTides(beaches, fetchJson = getJson) {
   return out;
 }
 
+// The National Weather Service land forecast zone a beach is in (e.g. "CAZ350"), where beach hazards
+// are issued. NWS puts points on the sand in its marine zones, so if the beach point isn't in a land
+// zone, nearby points a little way inland are tried, nearest first. Cached on the device.
+const ZONES_KEY = "beachcheck.zones";
+async function getBeachZone(beach, fetchJson = getJson) {
+  if (beach.zone) return beach.zone;
+  let cache = {};
+  try { cache = JSON.parse(localStorage.getItem(ZONES_KEY)) || {}; } catch { cache = {}; }
+  if (cache[beach.id]) return cache[beach.id];
+  // The beach point first, then four directions a short way out, then a bit farther: 9 lookups at most.
+  const tries = [[0, 0]];
+  for (const step of [0.003, 0.008]) tries.push([step, 0], [0, step], [0, -step], [-step, 0]);
+  for (const [dLat, dLon] of tries) {
+    const json = await fetchJson(`https://api.weather.gov/zones?type=forecast&point=${(beach.lat + dLat).toFixed(4)},${(beach.lon + dLon).toFixed(4)}`);
+    const land = (json.features || []).map((f) => f.properties && f.properties.id).find((id) => /^[A-Z]{2}Z\d{3}$/.test(id || "") && !/^[A-Z]ZZ/.test(id));
+    if (land) {
+      cache[beach.id] = land;
+      try { localStorage.setItem(ZONES_KEY, JSON.stringify(cache)); } catch { /* not remembered */ }
+      return land;
+    }
+  }
+  return null;
+}
+
+// Active NWS beach alerts for a set of zones, in one request.
+async function getNwsAlerts(zones, fetchJson = getJson) {
+  const list = [...new Set(zones.filter((z) => ZONE_RE.test(z)))].slice(0, 25);
+  if (!list.length) return [];
+  return parseNwsAlerts(await fetchJson(`https://api.weather.gov/alerts/active?status=actual&zone=${list.join(",")}`));
+}
+
 // City of Santa Barbara street sweeping routes within ~40 m of a point (polylines in lon/lat).
 const SWEEP_LAYER = "https://services3.arcgis.com/hMpg7vsYb74pEKjX/arcgis/rest/services/Street_Sweeping_Routes_2023_v2/FeatureServer/0/query";
 async function getSweepRoutes(point, fetchJson = getJson) {
@@ -512,5 +543,5 @@ async function sendVote({ beachId, reportId, vote }) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes, getAmenities, getTides, getSweepRoutes };
+  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes, getAmenities, getTides, getSweepRoutes, getBeachZone, getNwsAlerts };
 }

@@ -65,6 +65,16 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   against the City's Parks & Recreation beach pages and the county parks' feature lists; elsewhere
   they come from OpenStreetMap features within 400 m, in a separate small query after the beaches
   show. Filters: restrooms, showers, food, fire rings.
+- **Beach hazards** (`js/hazards.js`): active National Weather Service alerts that matter on the
+  beach (rip current, beach hazards, high surf, coastal flood, sneaker wave, tsunami) for each beach's
+  NWS land forecast zone, in one request. Santa Barbara's beaches are in zone CAZ350 (checked against
+  api.weather.gov); others look their zone up (the beach point, then nearby points, at most 9 lookups,
+  remembered on the device). Shown as a red banner with the NWS wording; counted in best picks and the
+  "No safety warnings" filter.
+- **Safety alerts** (`api/hazards.js`, `.github/workflows/hazard-check.yml`): turn on in "Your beaches
+  today" to get a push for each new NWS beach alert or county water closure at your starred beaches.
+  GitHub Actions calls the check every 15 minutes (GitHub may start runs a few minutes late), and each
+  hazard is pushed once.
 - **Live cams**: hand-checked camera links for Santa Barbara beaches: the SkylineWebcams cam over
   Stearns Wharf and the harbor, and Surfline's Leadbetter Point, Campus Point and Carpinteria cams.
 - **Sunrise and sunset**: worked out on the device from the beach's position and date.
@@ -142,6 +152,8 @@ node --test tests/*.test.js   # run the tests
    and add them as environment variables `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (optionally
    `VAPID_SUBJECT`, a `mailto:` address or the site's URL). Without them, alerts only work while
    the page is open.
+5. For safety alerts every 15 minutes, add the same `CRON_SECRET` value as a GitHub repository secret
+   (Settings → Secrets and variables → Actions → New repository secret). Until then the workflow skips.
 4. For the morning summary, add a `CRON_SECRET` environment variable (any long random text). Vercel
    sends it with its daily cron call, and the summary refuses calls without it.
 

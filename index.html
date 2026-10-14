@@ -144,7 +144,7 @@
       </div>
       <div class="filters" role="group" aria-label="Show only">
         <label class="chip"><input type="checkbox" id="f-fav"><span>★ My beaches</span></label>
-        <label class="chip"><input type="checkbox" id="f-water"><span>No water warnings</span></label>
+        <label class="chip"><input type="checkbox" id="f-water"><span>No safety warnings</span></label>
         <label class="chip"><input type="checkbox" id="f-guard"><span>Lifeguards</span></label>
         <label class="chip"><input type="checkbox" id="f-restrooms"><span>Restrooms</span></label>
         <label class="chip"><input type="checkbox" id="f-showers"><span>Showers</span></label>
@@ -172,7 +172,10 @@
         <section id="heads-up" class="panel heads-up" hidden>
           <div class="panel-head">
             <h2>Your beaches today</h2>
-            <button type="button" id="morning-toggle" class="ghost small" aria-pressed="false">☀️ Morning summary: off</button>
+            <span class="panel-actions">
+              <button type="button" id="safety-toggle" class="ghost small" aria-pressed="false">🚨 Safety alerts: off</button>
+              <button type="button" id="morning-toggle" class="ghost small" aria-pressed="false">☀️ Morning summary: off</button>
+            </span>
           </div>
           <ul></ul>
           <p id="morning-msg" class="fine" role="status"></p>
@@ -263,6 +266,7 @@
             <li><a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>: beaches, parking, amenities</li>
             <li><a href="https://tidesandcurrents.noaa.gov/">NOAA</a>: official tide predictions · <a href="https://open-meteo.com/">Open-Meteo</a>: weather, waves, water temperature</li>
             <li><a href="https://www.countyofsb.org/ch-ocean-water-monitoring-program">SB County Environmental Health</a>: ocean water testing (hotline 805-681-4949)</li>
+            <li><a href="https://www.weather.gov/lox/">National Weather Service</a>: beach hazards (rip currents, high surf, coastal flooding, tsunami)</li>
             <li><a href="https://project-osrm.org/">OSRM</a>: driving times · <a href="https://data.lacity.org/">LADOT</a>: LA street meters</li>
           </ul>
         </div>
@@ -365,6 +369,7 @@
   <script src="js/tides.js"></script>
   <script src="js/alerts.js"></script>
   <script src="js/water.js"></script>
+  <script src="js/hazards.js"></script>
   <script src="js/amenities.js"></script>
   <script src="js/points.js"></script>
   <script src="js/sweeping.js"></script>

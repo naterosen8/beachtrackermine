@@ -1,0 +1,51 @@
+{
+ "features": [
+  {
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.e62fde0a01c16a8d4b5614929ba72e21f7ad2294.001.1",
+    "event": "Beach Hazards Statement",
+    "headline": "Beach Hazards Statement issued October 14 at 12:27PM PDT until October 15 at 2:00PM PDT by NWS Los Angeles/Oxnard CA",
+    "severity": "Moderate",
+    "urgency": "Expected",
+    "effective": "2026-10-14T12:27:00-07:00",
+    "onset": "2026-10-14T12:27:00-07:00",
+    "expires": "2026-10-14T21:30:00-07:00",
+    "ends": "2026-10-15T14:00:00-07:00",
+    "areaDesc": "Ventura County Beaches; Malibu Coast; Los Angeles County Beaches",
+    "senderName": "NWS Los Angeles/Oxnard CA",
+    "status": "Actual",
+    "messageType": "Update",
+    "description": "* WHAT...Minor tidal overflow during times of high tides,\ndangerous rip currents, and elevated surf.\n\n* WHERE...Ventura County Beaches, Malibu Coast and Los Angeles\nCounty Beaches.\n\n* WHEN...Through Thursday afternoon.\n\n* IMPACTS...Minor flooding of sea water is likely around high\ntide at low-lying beach and harbor areas that is uncommon with\nnormal tidal ranges. Enhanced beach erosion is possible. The\nrisk for significant damage is very low. There is an increased\nrisk of ocean drowning. Rip currents can pull swimmers and\nsurfers out to sea. Waves can wash people off beaches and\nrocks, and capsize small boats nearshore.\n\n* ADDITIONAL DETAILS...Minor tidal overflow during morning high\ntide of 6.4 feet.",
+    "instruction": "Take the necessary actions to protect flood-prone property. Do\nNOT drive around barricades or through water of unknown depth.\n\nRemain out of the water due to hazardous swimming conditions, or\nstay near occupied lifeguard towers. Rock jetties can be deadly\nin such conditions, stay off the rocks.",
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/CAZ354",
+     "https://api.weather.gov/zones/forecast/CAZ362",
+     "https://api.weather.gov/zones/forecast/CAZ366"
+    ]
+   }
+  },
+  {
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.808ed78319d8e6b43c1a155277da014914280042.001.1",
+    "event": "Beach Hazards Statement",
+    "headline": "Beach Hazards Statement issued October 14 at 2:03AM PDT until October 15 at 2:00PM PDT by NWS San Diego CA",
+    "severity": "Moderate",
+    "urgency": "Expected",
+    "effective": "2026-10-14T02:03:00-07:00",
+    "onset": "2026-10-14T02:03:00-07:00",
+    "expires": "2026-10-14T14:30:00-07:00",
+    "ends": "2026-10-15T14:00:00-07:00",
+    "areaDesc": "San Diego County Coastal Areas; Orange County Coastal",
+    "senderName": "NWS San Diego CA",
+    "status": "Actual",
+    "messageType": "Update",
+    "description": "* WHAT...Elevated high tides 6.5 to 7 ft will continue through\nThursday with surf of 3 to 5 ft with sets to 6 ft expected.\n\n* WHERE...San Diego County Coastal Areas and Orange County\nCoastal Areas.\n\n* WHEN...Through Thursday afternoon.\n\n* IMPACTS...Minor coastal flooding and beach erosion. Dangerous\nswimming conditions for inexperienced swimmers.\n\n* ADDITIONAL DETAILS...High tides will fall below 6.5 ft after\nthe Thursday high tide. A south swell from 190 degrees of 3 ft\nwith a 15 to 17 second period will be present through\nThursday. A moderate period, persistent south swell from 190\nwill continue into next week.",
+    "instruction": "A beach hazards statement for minor tidal overflow means that\nhigh astronomical tides possibly in combination with above normal\nsurf will likely produce minor flooding of low-lying areas along\nthe beach such as beach parking lots. Coastal officials should\ntake the necessary precautionary measures to safeguard their\nbeaches.\n\nA beach hazards statement is issued when threats such as rip\ncurrents and other hazards are possible.  Caution should be used\nwhen in or near the water.",
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/CAZ043",
+     "https://api.weather.gov/zones/forecast/CAZ552"
+    ]
+   }
+  }
+ ]
+}

@@ -21,6 +21,7 @@ function parseBeaches(list) {
     if (!name || !(Math.abs(lat) <= 90) || !(Math.abs(lon) <= 180)) throw new Error("Bad beach");
     const out = { id: b.id, name, lat, lon };
     if (Array.isArray(b.waterSites)) out.waterSites = b.waterSites.filter((w) => /^WP\d{7}$/.test(w)).slice(0, 4);
+    if (typeof b.zone === "string" && /^[A-Z]{2}Z\d{3}$/.test(b.zone)) out.zone = b.zone;
     return out;
   });
 }
