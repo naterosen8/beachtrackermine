@@ -323,6 +323,22 @@ select { padding-right: 32px; }
 .how-icon { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); }
 .how-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
+/* --- Parking panel ----------------------------------------------------------- */
+
+.park-grid { display: grid; gap: 16px; }
+@media (min-width: 700px) { .park-grid { grid-template-columns: 1fr 1fr; } }
+.park-block { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+.park-block h3 { margin: 0 0 4px; font-size: 15px; }
+.park-block .fine { margin: 4px 0 10px; }
+.park-until { display: grid; gap: 4px; font-size: 14px; font-weight: 500; }
+.park-until input { max-width: 160px; }
+.sweep-result:empty { display: none; }
+.sweep-result { margin-top: 10px; font-size: 14px; display: grid; gap: 8px; }
+.sweep-result p { margin: 0; }
+.sweep-route { display: grid; gap: 6px; padding: 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); }
+.strong { font-weight: 600; }
+.error-text { color: var(--error); font-weight: 600; }
+
 /* --- Panels (your beaches, leaderboard) -------------------------------------- */
 
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 18px; }

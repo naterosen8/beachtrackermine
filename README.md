@@ -89,6 +89,14 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
 - **Estimates** (`js/crowd.js`): typical hourly pattern × weekend boost × season (flipped south of
   the equator) × weather, blended with the beach's own past reports once there are at least 3.
 - **Directions**: opens Google Maps driving directions to the beach.
+- **Parked? Avoid a ticket** (`js/sweeping.js`, `js/reminders.js`): "Check where I'm parked" looks up
+  the City of Santa Barbara's official street sweeping routes (the layer behind
+  santabarbaraca.gov/StreetSweeping) within 30 m of you and gives the next sweeping, with both sides of
+  the street when they differ. Only schedules that say exactly when become dates ("Wednesdays 2x A
+  Month" is shown as written; "2nd & 4th Mondays" gets the date but no time). Holiday and rain
+  cancellations aren't published as data, so the hotline is shown. The meter/time-limit reminder and
+  sweeping reminders go to the phone's own calendar (.ics file or Google Calendar link), which alerts
+  even with the site closed.
 - **Leave by**: road drive times from the searched place to every beach in one request to the public
   [OSRM](https://project-osrm.org/) router (OpenStreetMap roads; within its fair-use policy, one
   request per search), falling back to a straight-line estimate. Typical traffic is added by rule

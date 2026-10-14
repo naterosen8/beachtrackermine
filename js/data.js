@@ -290,6 +290,25 @@ async function getTides(beaches, fetchJson = getJson) {
   return out;
 }
 
+// City of Santa Barbara street sweeping routes within ~40 m of a point (polylines in lon/lat).
+const SWEEP_LAYER = "https://services3.arcgis.com/hMpg7vsYb74pEKjX/arcgis/rest/services/Street_Sweeping_Routes_2023_v2/FeatureServer/0/query";
+async function getSweepRoutes(point, fetchJson = getJson) {
+  const params = new URLSearchParams({
+    geometry: `${point.lon},${point.lat}`,
+    geometryType: "esriGeometryPoint",
+    inSR: "4326",
+    distance: "40",
+    units: "esriSRUnit_Meter",
+    outFields: "Schedule,Route_Type",
+    returnGeometry: "true",
+    outSR: "4326",
+    f: "json",
+  });
+  const json = await fetchJson(`${SWEEP_LAYER}?${params}`);
+  if (json.error) throw new Error(json.error.message || "Street sweeping map unavailable");
+  return json.features || [];
+}
+
 // Road driving times from `origin` to each beach, from the public OSRM router (OpenStreetMap roads,
 // no traffic): { beachId: { minutes, km } }. One request for up to DRIVE_MAX_BEACHES beaches.
 const DRIVE_MAX_BEACHES = 60;
@@ -493,5 +512,5 @@ async function sendVote({ beachId, reportId, vote }) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes, getAmenities, getTides };
+  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes, getAmenities, getTides, getSweepRoutes };
 }

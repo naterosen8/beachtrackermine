@@ -1559,6 +1559,121 @@ $("near-me").addEventListener("click", async () => {
   }
 });
 
+// --- Parking: street sweeping where you parked, and meter reminders --------------------------------
+
+// Offers a calendar file and a Google Calendar link for an event.
+function reminderButtons(event, label = "Add reminder") {
+  const box = el("div", null, "actions");
+  const ics = el("button", `${label} (iPhone, Outlook)`, "small");
+  ics.type = "button";
+  ics.addEventListener("click", () => downloadIcs(event));
+  const g = el("a", "Google Calendar", "button small");
+  g.href = googleCalendarUrl(event);
+  g.target = "_blank";
+  g.rel = "noopener";
+  box.append(ics, g);
+  return box;
+}
+
+function downloadIcs(event) {
+  const blob = new Blob([icsEvent(event)], { type: "text/calendar" });
+  const a = el("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "beach-check-reminder.ics";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+const fmtDayTime = (d) => d.toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const fmtDay = (d) => d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+
+$("sweep-check").addEventListener("click", async () => {
+  const out = $("sweep-result");
+  const button = $("sweep-check");
+  button.disabled = true;
+  out.replaceChildren(el("p", "Finding your street…", "fine"));
+  try {
+    const here = await currentPosition();
+    const routes = sweepRoutesNear(here, await getSweepRoutes(here));
+    out.replaceChildren(...sweepResult(routes));
+  } catch (err) {
+    out.replaceChildren(el("p", err.message, "error-text"));
+  } finally {
+    button.disabled = false;
+  }
+});
+
+// What the city's schedule says for the street you're on, and the next sweeping as a reminder.
+function sweepResult(routes) {
+  const parts = [];
+  if (!routes.length) {
+    parts.push(el("p", "No City of Santa Barbara sweeping route within 30 m of you. The city's map only covers streets inside the City of Santa Barbara (not Goleta, Isla Vista or Carpinteria). Always check posted signs."));
+    return parts;
+  }
+  if (routes.length > 1) parts.push(el("p", "The sides of this street are swept at different times. Check the posted sign for your side:", "strong"));
+  for (const r of routes) {
+    const sched = parseSweepSchedule(r.schedule);
+    const block = el("div", null, "sweep-route");
+    block.append(el("p", `${r.type} sweeping: ${r.schedule}`, "strong"));
+    if (sched.notSwept) {
+      block.append(el("p", "The city's map lists this street as not swept."));
+    } else {
+      const next = nextSweeping(sched);
+      if (!next) {
+        block.append(el("p", "The city's map doesn't say which dates, so check the posted sign."));
+      } else if (next.timed) {
+        const now = Date.now();
+        const during = next.start <= now;
+        block.append(el("p", during
+          ? `Sweeping is happening now, until ${fmtClock(next.end)}. Move your car if you're on this side.`
+          : `Next sweeping: ${fmtDayTime(next.start)} to ${fmtClock(next.end)}. Don't be parked here then.`, during ? "error-text" : ""));
+        if (!during) {
+          // Remind the evening before (8 PM), or 2 hours ahead when that's sooner.
+          const eve = new Date(next.start.getFullYear(), next.start.getMonth(), next.start.getDate() - 1, 20);
+          const alarm = Math.max(120, Math.round((next.start - eve) / 60000));
+          block.append(reminderButtons({ title: `Move car: street sweeping ${fmtClock(next.start)}–${fmtClock(next.end)}`, start: next.start, end: next.end, alarmMinutes: alarm, details: `${r.schedule} (City of Santa Barbara). Sweeping is cancelled on some holidays and rain days; hotline (805) 897-1903.` }));
+        }
+      } else {
+        block.append(el("p", `Next sweeping day: ${fmtDay(next.start)} (the time isn't listed on the city's map; check the posted sign).`));
+        block.append(reminderButtons({ title: "Street sweeping today: check the sign and move your car", start: next.start, allDay: true, alarmMinutes: 240, details: `${r.schedule} (City of Santa Barbara). Hotline (805) 897-1903.` }));
+      }
+    }
+    parts.push(block);
+  }
+  parts.push(el("p", "From the City of Santa Barbara's street sweeping map. Sweeping is cancelled on some holidays and rain days. Posted signs take priority. Hotline: (805) 897-1903.", "fine"));
+  return parts;
+}
+
+// Meter or time-limit reminder: the time defaults to two hours from now.
+(function setupParkTimer() {
+  const input = $("park-until");
+  const soon = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  input.value = `${String(soon.getHours()).padStart(2, "0")}:${String(Math.floor(soon.getMinutes() / 5) * 5).padStart(2, "0")}`;
+  const eventFor = () => {
+    const [h, m] = input.value.split(":").map(Number);
+    if (!Number.isFinite(h)) return null;
+    const now = new Date();
+    let end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+    if (end < now) end = new Date(end.getTime() + 24 * 60 * 60 * 1000); // a time earlier today means tomorrow
+    return { title: "Parking time runs out", start: end, alarmMinutes: 10, details: "Your meter or posted time limit ends now. Move or top up to avoid a ticket." };
+  };
+  const update = () => {
+    const ev = eventFor();
+    $("park-gcal").href = ev ? googleCalendarUrl(ev) : "#";
+    $("park-note").textContent = ev
+      ? `Reminder for ${fmtDayTime(ev.start)}. Your phone's calendar alerts you 10 minutes before, even with this site closed.`
+      : "Pick the time your meter or limit ends.";
+  };
+  input.addEventListener("input", update);
+  $("park-ics").addEventListener("click", () => {
+    const ev = eventFor();
+    if (ev) downloadIcs(ev);
+  });
+  update();
+})();
+
 // "Popular" place buttons in the hero, and the location button in the top bar.
 for (const b of document.querySelectorAll(".quick [data-place]")) {
   b.addEventListener("click", () => {

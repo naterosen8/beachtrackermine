@@ -26,6 +26,7 @@
       <nav class="nav" aria-label="Sections">
         <a href="#beaches">Beaches</a>
         <a href="#map">Map</a>
+        <a href="#parking">Parking</a>
         <a href="#leaders">Top reporters</a>
       </nav>
       <button type="button" class="locate-top" id="near-me-top" aria-label="Use my location">
@@ -175,6 +176,27 @@
           </div>
           <ul></ul>
           <p id="morning-msg" class="fine" role="status"></p>
+        </section>
+
+        <section id="parking" class="panel parking">
+          <div class="panel-head"><h2>Parked? Avoid a ticket</h2></div>
+          <div class="park-grid">
+            <div class="park-block">
+              <h3>Street sweeping</h3>
+              <p class="fine">Checks the City of Santa Barbara's official sweeping schedule for the street you're parked on.</p>
+              <button type="button" id="sweep-check" class="primary small">Check where I'm parked</button>
+              <div id="sweep-result" class="sweep-result" role="status"></div>
+            </div>
+            <div class="park-block">
+              <h3>Meter or time limit</h3>
+              <label class="park-until">Time runs out at <input type="time" id="park-until" required></label>
+              <div class="actions">
+                <button type="button" id="park-ics" class="small">Add reminder (iPhone, Outlook)</button>
+                <a id="park-gcal" class="button small" target="_blank" rel="noopener">Google Calendar</a>
+              </div>
+              <p class="fine" id="park-note">Your phone's calendar alerts you 10 minutes before, even with this site closed.</p>
+            </div>
+          </div>
         </section>
 
         <ol id="beaches" class="beaches">
@@ -345,6 +367,8 @@
   <script src="js/water.js"></script>
   <script src="js/amenities.js"></script>
   <script src="js/points.js"></script>
+  <script src="js/sweeping.js"></script>
+  <script src="js/reminders.js"></script>
   <script src="js/data.js"></script>
   <script src="js/meters.js"></script>
   <script src="js/santa-barbara.js"></script>
