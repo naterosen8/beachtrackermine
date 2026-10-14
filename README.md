@@ -43,10 +43,16 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   parking app doesn't publish its data. Other beach cities checked publish no live counts.
 - **Weather**: Open-Meteo hourly forecast (temperature, rain, wind, UV) for the time you plan to go,
   up to a week ahead.
-- **Surf, water temperature and tides** (`js/conditions.js`): Open-Meteo Marine hourly wave height
-  and period, sea surface temperature and sea level, for every beach in one request. Tide highs and
-  lows are the turning points of the modelled sea level; only their times are shown, since the model
-  measures from mean sea level rather than the tide-table zero.
+- **Surf and water temperature** (`js/conditions.js`): Open-Meteo Marine hourly wave height and period
+  and sea surface temperature, for every beach in one request.
+- **Tides** (`js/tides.js`, `js/tide-stations.js`): official NOAA high/low predictions (feet above
+  mean lower low water, as in tide tables) from the nearest NOAA station within 40 km, one request per
+  station. California's 193 stations are stored in the app (NOAA's full list is 2 MB). Elsewhere the
+  Open-Meteo modelled sea level is used, labelled as modelled, with times only.
+- **High-tide cut-offs**: Isla Vista, Goleta Beach and Arroyo Burro show a documented warning quoted
+  from its source (County Fire via the Daily Nexus, the California Coastal Trail guide, the Santa
+  Barbara Independent) next to that day's NOAA tide times. No agency publishes a "safe below" height
+  for these beaches, so the app never shows a safe time.
 - **Water quality** (`js/water.js`): Santa Barbara County Environmental Health's weekly bacteria
   testing (Open / Warning / Closed, with the sample date), read live from the public layer behind the
   county's [Ocean Water Monitoring map](https://www.countyofsb.org/ch-ocean-water-monitoring-program).

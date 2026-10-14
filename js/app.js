@@ -30,6 +30,7 @@ const state = {
   water: [], // county water quality sampling sites
   drives: {}, // road drive times from the searched place, by beach id
   amenities: {}, // OpenStreetMap amenities for beaches without a hand-checked list
+  tides: {}, // NOAA tide predictions by beach id: { station, turns }
   updated: null, // when live reports were last fetched
   favorites: new Set(load_(FAVORITES_KEY) || []),
   favInfo: load_(FAV_INFO_KEY) || {},
@@ -48,6 +49,7 @@ let markers = null;
 const fmtDistance = (km) =>
   imperial ? `${(km * 0.621371).toFixed(km < 16 ? 1 : 0)} mi` : `${km.toFixed(km < 10 ? 1 : 0)} km`;
 const fmtTemp = (c) => (imperial ? `${Math.round(c * 1.8 + 32)}°F` : `${Math.round(c)}°C`);
+const fmtTideHeight = (ft) => (imperial ? `${ft.toFixed(1)} ft` : `${(ft * 0.3048).toFixed(1)} m`);
 const fmtHeight = (m) => (imperial ? `${(m * 3.28084).toFixed(1)} ft` : `${m.toFixed(1)} m`);
 const fmtClock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
@@ -307,7 +309,10 @@ function describe(beach, when) {
   const drive = driveFor(beach);
   const marineHours = state.marine[beach.id];
   const sea = marineAt(marineHours, when.getTime());
-  const tide = marineHours ? tideAt(marineHours, when.getTime()) : null;
+  // Official NOAA tides when there's a station nearby; otherwise the modelled sea level.
+  const noaa = state.tides[beach.id];
+  const tide = noaa ? tideFromTurns(noaa.turns, when.getTime()) : marineHours ? tideAt(marineHours, when.getTime()) : null;
+  const tideSource = noaa ? noaa.station : null;
   const sun = sunTimes(when, beach.lat, beach.lon);
   const water = waterFor(beach, state.water);
   const waterLevel = worstWater(water);
@@ -325,6 +330,7 @@ function describe(beach, when) {
     waterLevel,
     sea,
     tide,
+    tideSource,
     sun,
     day,
     meters,
@@ -490,9 +496,10 @@ function card(v, reportOpen, when, alertOpen) {
   }
   if (sea && sea.waterC != null) facts.append(el("li", `Water: about ${fmtTemp(sea.waterC)}`));
   if (tide) {
-    // Model heights are from mean sea level, not the tide-table zero, so only times are shown.
-    const turn = (t) => `${t.type} ${fmtClockOn(t.time, when)}`;
-    facts.append(el("li", `Tide: ${tide.rising ? "rising" : "falling"}, ${turn(tide.next)}${tide.after ? `, then ${turn(tide.after)}` : ""}`));
+    // NOAA heights are from the tide-table zero; model heights aren't, so those show times only.
+    const turn = (t) => `${t.type} ${fmtClockOn(t.time, when)}${t.ft != null ? ` (${fmtTideHeight(t.ft)})` : ""}`;
+    const from = v.tideSource ? ` (NOAA, ${v.tideSource.name} station)` : " (modelled; check a tide table)";
+    facts.append(el("li", `Tide${from}: ${tide.rising ? "rising" : "falling"}, ${turn(tide.next)}${tide.after ? `, then ${turn(tide.after)}` : ""}`));
   }
   if (sun) {
     const dark = when.getTime() > sun.sunset || when.getTime() < sun.sunrise;
@@ -621,7 +628,10 @@ function statTiles(box, v, when) {
   if (weather) tile("sun", "Weather", fmtTemp(weather.tempC), `${Math.round(weather.precipProb || 0)}% rain${weather.uv != null ? ` · UV ${Math.round(weather.uv)}` : ""}`);
   if (sea && sea.waveM != null) tile("waves", "Surf", fmtHeight(sea.waveM), surfLabel(sea.waveM));
   if (sea && sea.waterC != null) tile("thermo", "Water temp", fmtTemp(sea.waterC), "approx.");
-  if (tide) tile("tide", "Tide", tide.rising ? "Rising" : "Falling", `${tide.next.type} ${fmtClockOn(tide.next.time, when)}`);
+  if (tide) {
+    const height = tide.next.ft != null ? ` · ${fmtTideHeight(tide.next.ft)}` : "";
+    tile("tide", "Tide", tide.rising ? "Rising" : "Falling", `${tide.next.type} ${fmtClockOn(tide.next.time, when)}${height}`);
+  }
   if (sun) tile("sunset", "Sunset", fmtClock(sun.sunset), `Sunrise ${fmtClock(sun.sunrise)}`);
 }
 
@@ -636,6 +646,38 @@ function cardAlerts(box, v) {
   else if (v.waterLevel === "warning") banner("Water quality warning: bacteria above state standards.");
   const rain = state.weather ? recentRainMm(state.weather) : 0;
   if (rain >= RAIN_ADVISORY_MM) banner("Rain advisory: stay out of the ocean for 72 hours after significant rain.");
+  tideNotes(box, v);
+}
+
+// Documented high-tide cut-offs, quoted with their source, next to the official tide times for the
+// chosen day. Never a "safe until" time: no agency publishes one for these beaches.
+function tideNotes(box, v) {
+  const notes = v.beach.tideNotes;
+  if (!notes || !notes.length) return;
+  const wrap = el("div", null, "card-note");
+  const head = el("p", null, "card-note-head");
+  head.append(icon("tide"), document.createTextNode("Parts of this beach get cut off at high tide"));
+  wrap.append(head);
+  for (const n of notes) {
+    const p = el("p", n.text);
+    const a = el("a", n.source);
+    a.href = n.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    p.append(document.createTextNode(" "), a);
+    wrap.append(p);
+  }
+  const noaa = state.tides[v.beach.id];
+  const when = targetTime();
+  const day = noaa ? turnsOnDay(noaa.turns, when) : [];
+  if (day.length) {
+    const label = sameDay(when, Date.now()) ? "Today" : new Date(when).toLocaleDateString([], { weekday: "long" });
+    const times = day.map((t) => `${t.type} ${fmtClock(t.time)} (${fmtTideHeight(t.ft)})`).join(", ");
+    wrap.append(el("p", `${label}'s tides (NOAA, ${noaa.station.name}): ${times}. Plan walks around low tide and keep an exit.`, "card-note-times"));
+  } else {
+    wrap.append(el("p", "Check a tide table before walking below the bluffs, and keep an exit.", "card-note-times"));
+  }
+  box.append(wrap);
 }
 
 // --- Recent reports and votes -------------------------------------------------
@@ -1336,6 +1378,20 @@ async function refreshMarine() {
   }
 }
 
+// Official tide predictions from NOAA. Optional: without them the modelled tide is shown.
+async function refreshTides() {
+  const beaches = state.beaches;
+  if (demo) return;
+  try {
+    const tides = await getTides(beaches);
+    if (beaches !== state.beaches) return;
+    state.tides = tides;
+    render();
+  } catch {
+    // keep the modelled tide
+  }
+}
+
 // Amenities from the map for beaches without a hand-checked list. Optional.
 async function refreshAmenities() {
   const beaches = state.beaches;
@@ -1406,6 +1462,7 @@ async function load(center) {
   state.water = [];
   state.drives = {};
   state.amenities = {};
+  state.tides = {};
   rememberPlace(center);
   setStatus(`Finding beaches near ${center.label}…`);
   let radius = Number($("radius").value);
@@ -1431,6 +1488,7 @@ async function load(center) {
     refreshMarine();
     refreshWater();
     refreshDrives();
+    refreshTides();
     setStatus(beachesStatus(radius, center));
     findBeaches(center, radius)
       .then(async (found) => {
@@ -1441,6 +1499,7 @@ async function load(center) {
         refreshWater();
         refreshDrives();
         refreshAmenities();
+        refreshTides();
         setStatus(beachesStatus(radius, center));
       })
       .catch(() => {}); // the hand-checked list is already showing
@@ -1486,6 +1545,7 @@ async function load(center) {
   refreshWater();
   refreshDrives();
   refreshAmenities();
+  refreshTides();
   setStatus(beachesStatus(radius, center));
 }
 

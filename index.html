@@ -239,7 +239,7 @@
           <h3>Data sources</h3>
           <ul>
             <li><a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>: beaches, parking, amenities</li>
-            <li><a href="https://open-meteo.com/">Open-Meteo</a>: weather, waves, water temperature, tides</li>
+            <li><a href="https://tidesandcurrents.noaa.gov/">NOAA</a>: official tide predictions · <a href="https://open-meteo.com/">Open-Meteo</a>: weather, waves, water temperature</li>
             <li><a href="https://www.countyofsb.org/ch-ocean-water-monitoring-program">SB County Environmental Health</a>: ocean water testing (hotline 805-681-4949)</li>
             <li><a href="https://project-osrm.org/">OSRM</a>: driving times · <a href="https://data.lacity.org/">LADOT</a>: LA street meters</li>
           </ul>
@@ -248,7 +248,7 @@
           <h3>Good to know</h3>
           <ul>
             <li>Crowd estimates are guesses; live reports beat them.</li>
-            <li>Tides are modelled: check a tide table before tidepooling.</li>
+            <li>Tides are NOAA predictions for the nearest station; actual water levels vary with surf and weather.</li>
             <li>Swim near lifeguards and check posted signs.</li>
           </ul>
         </div>
@@ -339,6 +339,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="js/crowd.js"></script>
   <script src="js/conditions.js"></script>
+  <script src="js/tide-stations.js"></script>
+  <script src="js/tides.js"></script>
   <script src="js/alerts.js"></script>
   <script src="js/water.js"></script>
   <script src="js/amenities.js"></script>

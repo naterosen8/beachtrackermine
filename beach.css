@@ -412,6 +412,11 @@ select { padding-right: 32px; }
 .card-alert { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--bad-soft); color: var(--bad); font-size: 14px; font-weight: 600; }
 .card-alert .icon { margin-top: 2px; }
 
+.card-note { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--l3) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--l3) 40%, transparent); font-size: 14px; }
+.card-note p { margin: 4px 0 0; }
+.card-note-head { display: flex; align-items: center; gap: 8px; margin: 0 !important; font-weight: 700; color: color-mix(in srgb, var(--l3) 70%, var(--text)); }
+.card-note a { font-size: 13px; }
+.card-note-times { font-weight: 600; }
 .leave-row:empty { display: none; }
 .leave-row { margin-top: 12px; display: grid; gap: 4px; }
 .leave-row p { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 14px; font-weight: 600; }

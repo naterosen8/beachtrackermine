@@ -261,6 +261,35 @@ out center tags 2000;`;
   throw new Error(`Couldn't load amenities (${failures.join("; ")})`);
 }
 
+// Official tides (NOAA high/low predictions) for each beach's nearest NOAA station, yesterday through
+// the next week: { beachId: { station: { id, name, km }, turns: [{ type, time, ft }] } }.
+// One request per station; beaches with no station nearby are left out (they keep the modelled tide).
+async function getTides(beaches, fetchJson = getJson) {
+  const byStation = new Map();
+  for (const b of beaches) {
+    const station = nearestTideStation(b);
+    if (!station) continue;
+    if (!byStation.has(station.id)) byStation.set(station.id, { station, beaches: [] });
+    byStation.get(station.id).beaches.push({ b, station });
+  }
+  const start = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const begin = `${start.getFullYear()}${String(start.getMonth() + 1).padStart(2, "0")}${String(start.getDate()).padStart(2, "0")}`;
+  const out = {};
+  await Promise.all([...byStation.values()].map(async ({ station, beaches: list }) => {
+    const params = new URLSearchParams({
+      product: "predictions", application: "BeachCheck", station: station.id, datum: "MLLW",
+      interval: "hilo", units: "english", time_zone: "gmt", format: "json", begin_date: begin, range: "216",
+    });
+    try {
+      const turns = parseNoaaTides(await fetchJson(`https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?${params}`));
+      if (turns.length) for (const { b, station: s } of list) out[b.id] = { station: s, turns };
+    } catch {
+      // this station's beaches keep the modelled tide
+    }
+  }));
+  return out;
+}
+
 // Road driving times from `origin` to each beach, from the public OSRM router (OpenStreetMap roads,
 // no traffic): { beachId: { minutes, km } }. One request for up to DRIVE_MAX_BEACHES beaches.
 const DRIVE_MAX_BEACHES = 60;
@@ -464,5 +493,5 @@ async function sendVote({ beachId, reportId, vote }) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes, getAmenities };
+  module.exports = { parseOverpass, parsePhotonBeaches, findBeaches, weatherAt, geocode, getMarine, parseMarine, getWaterQuality, getReports, getDriveTimes, getAmenities, getTides };
 }

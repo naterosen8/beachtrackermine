@@ -24,6 +24,27 @@ const AMENITY_SETS = {
   rincon: [{ key: "restrooms" }, { key: "showers", note: "outdoor" }, { key: "picnic" }],
 };
 
+// tideNotes: documented places where the beach gets cut off at high tide, quoted from their source.
+// No agency publishes a "safe below" height for these, so the app shows the official tide times
+// alongside the warning and never claims a safe time.
+const TIDE_NOTES = {
+  islaVista: [{
+    text: "County Fire: \"As the tide comes up, we have a lot of people that are trapped\" against the bluffs here; there have been several cliff rescues.",
+    source: "Daily Nexus, June 2023, quoting Santa Barbara County Fire",
+    url: "https://dailynexus.com/2023-06-02/isla-vista-locals-urged-to-heed-water-safety-protocols/",
+  }],
+  goleta: [{
+    text: "Walking east toward More Mesa: \"At high tide the first two miles of beach may be impassable or difficult to pass at several points.\"",
+    source: "California Coastal Trail, Santa Barbara Section 8",
+    url: "https://californiacoastaltrail.org/trail-section/santa-barbara-section-8/",
+  }],
+  arroyoBurro: [{
+    text: "Walking east toward Shoreline Park: \"Heading east on medium or lower tides will allow you to make it all the way.\"",
+    source: "Santa Barbara Independent",
+    url: "https://www.independent.com/2007/12/01/arroyo-burro-beach/",
+  }],
+};
+
 // waterSites: Santa Barbara County Environmental Health sampling sites for each beach (ids from
 // the county's ocean water monitoring map). West Beach has none of its own; the Mission Creek site
 // is right next to it at Stearns Wharf. Isla Vista and Rincon aren't sampled by the county.
@@ -69,7 +90,7 @@ const SB_BEACHES = [
     ],
   },
   {
-    id: "osm:way/345801519", name: "Arroyo Burro Beach (Hendry's)", amenities: AMENITY_SETS.arroyoBurro, waterSites: ["WP0000147"], aliases: ["Hendrys Beach", "Hendry's Beach"],
+    id: "osm:way/345801519", name: "Arroyo Burro Beach (Hendry's)", amenities: AMENITY_SETS.arroyoBurro, tideNotes: TIDE_NOTES.arroyoBurro, waterSites: ["WP0000147"], aliases: ["Hendrys Beach", "Hendry's Beach"],
     lat: 34.4027, lon: -119.7431, lifeguards: "seasonal", dogArea: true,
     lots: [{ name: "Arroyo Burro Beach Park lot (county)", fee: "free", hours: COUNTY_HOURS }],
   },
@@ -78,11 +99,11 @@ const SB_BEACHES = [
     lots: [{ name: "Street parking along Channel Drive", fee: "free", street: true }],
   },
   {
-    id: "osm:way/44580911", name: "Goleta Beach", lat: 34.4166, lon: -119.8328, lifeguards: "seasonal", amenities: AMENITY_SETS.goleta, waterSites: ["WP0000037"], cams: [CAMS.campus],
+    id: "osm:way/44580911", name: "Goleta Beach", lat: 34.4166, lon: -119.8328, lifeguards: "seasonal", amenities: AMENITY_SETS.goleta, tideNotes: TIDE_NOTES.goleta, waterSites: ["WP0000037"], cams: [CAMS.campus],
     lots: [{ name: "Goleta Beach Park lot (county)", fee: "free", hours: COUNTY_HOURS }],
   },
   {
-    id: "osm:way/446746847", name: "Isla Vista Beach", lat: 34.4071, lon: -119.8499, amenities: AMENITY_SETS.islaVista, waterSites: [], cams: [CAMS.campus],
+    id: "osm:way/446746847", name: "Isla Vista Beach", lat: 34.4071, lon: -119.8499, amenities: AMENITY_SETS.islaVista, tideNotes: TIDE_NOTES.islaVista, waterSites: [], cams: [CAMS.campus],
     lots: [{ name: "Street parking in Isla Vista (no beach lot)", fee: "free", street: true }],
   },
   {
