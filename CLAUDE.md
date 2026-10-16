@@ -1,7 +1,7 @@
 # Beach Check (personal version): notes for continuing
 
 Read this first. It records what this project is, how the owner wants work done, where things stand,
-and what's next. Last updated October 14, 2026.
+and what's next. Last updated October 16, 2026.
 
 ## What this is
 
@@ -10,6 +10,8 @@ quality, tides, surf, hazards and alerts. Plain HTML/CSS/JS (no build step) plus
 functions in `api/`.
 
 - **This repo:** `naterosen8/beachtrackermine` (the owner's personal version). Branch: `main`.
+  Work in progress goes on a `claude/...` branch first (Vercel builds a preview of it); the owner
+  merges it into `main` to put it live.
 - **Live site:** https://beachtrackermine.vercel.app (Vercel project `beachtrackermine-4d6j`, which
   also answers at beachtrackermine-4d6j.vercel.app). Every push to `main` deploys automatically.
 - **The group's version is separate:** `naterosen8/BeachTracker`, live at
@@ -17,6 +19,31 @@ functions in `api/`.
   **Never push to, merge into, or change `BeachTracker`** unless the owner explicitly asks.
   (Its `main` includes an early round of features: surf/tides/hourly forecast/favorites/filters/
   share links. The owner decided to keep that.)
+
+## Why this project matters (direction set October 16, 2026)
+
+Beach Check is the **local beach feed for Isla Vista and UCSB**: the spots students actually use
+(Depressions, Pescadero "Peskys", Devereux "Devs", Sands), plus the rest of Santa Barbara.
+
+- **Students** get conditions, crowds and safety for those beaches.
+- **UCSB clubs** (freedive, swim, surf, ...) post meetups and recruit people already checking the beach.
+- **Local businesses pay**, and that is how the project sustains itself:
+  1. **Monthly sponsorship (top priority):** a business pays a monthly fee to advertise in the app.
+  2. **Paid posts:** a business pays to have a post appear in a beach's local feed.
+
+Rules for this: every paid placement is clearly labeled "Sponsored" (FTC disclosure rules and the
+owner's no-faking rule); club and business posts never mix with or change crowd reports; the owner
+approves each business before it goes live.
+
+### Priorities, in order
+
+1. [x] Isla Vista spots as their own hand-checked beaches (Depressions, Pescadero, Devereux, Sands).
+2. [ ] Monthly sponsors: a labeled sponsor spot in the app, an owner-controlled sponsor list, and an
+   "Advertise here" page (payment via a Stripe Payment Link to start, no billing system).
+3. [ ] Local feed per beach: club posts and paid "Sponsored" business posts, approved by the owner.
+4. [ ] Club listings for UCSB clubs, with meetups tied to the beach they happen at.
+
+The older "Ideas not yet built" below wait until these are done.
 
 ## How the owner wants work done
 
@@ -70,7 +97,7 @@ See README.md for details and sources. In short:
 
 ## Working on the code
 
-- Run tests: `npm install` once, then `node --test tests/*.test.js` (101 passing as of Oct 14, 2026).
+- Run tests: `npm install` once, then `node --test tests/*.test.js` (103 passing as of Oct 16, 2026).
 - Look at the site: `python3 -m http.server 8766` and open http://localhost:8766 (`?demo` shows
   sample Los Angeles beaches with live reports).
 - Test the server features locally: `node tools/devserver.js "$PWD" 8790` serves the site, runs the

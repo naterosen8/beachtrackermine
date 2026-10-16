@@ -1,5 +1,10 @@
 # Beach Check
 
+The local beach app for Isla Vista and UCSB: Depressions, Pescadero (Peskys), Devereux (Devs),
+Sands and the rest of Santa Barbara. Students check conditions and crowds, UCSB clubs post meetups,
+and local businesses pay to advertise (a monthly sponsorship, or paid posts in a beach's feed;
+always labeled "Sponsored").
+
 See how busy the beaches near you are before you leave: crowd level, parking, weather and directions.
 Beachgoers report how crowded a beach is and how parking looks, and everyone sees it live. When
 nobody has reported, the site estimates the crowd from the time of day, weekday or weekend, season,
@@ -13,6 +18,16 @@ The site opens on Santa Barbara. Its main public beaches come from a hand-checke
 (`js/santa-barbara.js`) instead of map data alone, which gets this area wrong (Hendry's and
 Arroyo Burro listed as two beaches, a private beach included, Goleta Beach missing, almost no parking
 details). Other mapped beaches nearby (More Mesa, Ellwood, ...) are added after it.
+
+**Isla Vista's spots** are listed under the names locals use, with locations from OpenStreetMap
+checked against UCSB A.S. Environmental Affairs' [beach map](https://evpla.as.ucsb.edu/beach-maps/):
+Depressions (the old "Isla Vista Beach" entry, so its past reports still count), Pescadero (Peskys),
+Devereux (Devs) and Sands. Devereux and Sands use the county's "Sands @ Coal Oil Point" water testing
+site and the UCSB permit lot on Seaway Drive that [Coal Oil Point Reserve](https://copr.nrs.ucsb.edu/visiting/parking-and-directions/)
+points visitors to. Sands shows the reserve's [rules](https://copr.nrs.ucsb.edu/public/) (no dogs;
+snowy plover protection March 15 – September 15); Devereux allows dogs on leash
+([reserve Q&A](https://copr.nrs.ucsb.edu/dog-prohibition-at-coal-oil-point-reserve-qa/)). Pescadero
+warns that its stairs are closed ([Santa Barbara Independent, Oct 13, 2026](https://www.independent.com/2026/10/13/isla-vistas-coastal-access-debacle-on-the-eve-of-el-nino/)).
 
 Parking for each beach lists the official lots, spaces, rates and hours:
 
@@ -166,3 +181,7 @@ node --test tests/*.test.js   # run the tests
 5. [x] Photos with reports, and up/down votes on reports to weed out bad ones
 6. [x] Tides, water quality and surf conditions
 7. [x] Reporter points and a weekly leaderboard (no accounts needed)
+8. [x] Isla Vista spots: Depressions, Pescadero, Devereux, Sands
+9. [ ] Monthly business sponsors (labeled "Sponsored")
+10. [ ] Local feed per beach: club posts and paid business posts
+11. [ ] UCSB club listings
