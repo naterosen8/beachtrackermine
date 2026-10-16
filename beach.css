@@ -528,6 +528,14 @@ details[open].more > summary::before, details[open].reports-list > summary::befo
 
 /* --- Footer ------------------------------------------------------------------ */
 
+/* Sponsors: always labeled, kept quiet so they never look like conditions or warnings. */
+.sponsor { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 18px; padding: 12px 16px; border-radius: var(--radius); background: var(--surface); border: 1px dashed var(--border-strong); font-size: 14px; }
+.sponsor.house { background: transparent; }
+.sponsor-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.sponsor-name { font-weight: 700; color: var(--brand); }
+.sponsor-tagline { color: var(--muted); }
+.card-sponsor { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 13px; }
+
 .footer { background: var(--navy); color: rgb(255 255 255 / .72); }
 .footer-inner { max-width: 1240px; margin: 0 auto; padding: 40px 20px; display: grid; gap: 28px; }
 .footer-brand p { margin: 10px 0 0; max-width: 40ch; font-size: 14px; }

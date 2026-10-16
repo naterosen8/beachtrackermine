@@ -28,6 +28,7 @@
         <a href="#map">Map</a>
         <a href="#parking">Parking</a>
         <a href="#leaders">Top reporters</a>
+        <a href="advertise.html">Advertise</a>
       </nav>
       <button type="button" class="locate-top" id="near-me-top" aria-label="Use my location">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/></svg>
@@ -202,6 +203,8 @@
           </div>
         </section>
 
+        <aside id="sponsor" class="sponsor" aria-label="Sponsored"></aside>
+
         <ol id="beaches" class="beaches">
           <li class="card skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></li>
           <li class="card skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></li>
@@ -257,7 +260,8 @@
     <div class="footer-inner">
       <div class="footer-brand">
         <a class="brand" href="./"><img src="icon.svg" alt="" width="28" height="28"><span>Beach Check</span></a>
-        <p>Crowds, parking and conditions for Santa Barbara beaches, powered by beachgoers.</p>
+        <p>Crowds, parking and conditions for Isla Vista and Santa Barbara beaches, powered by beachgoers.</p>
+        <p><a href="advertise.html">Advertise with us</a>: reach students and locals headed to the beach.</p>
       </div>
       <div class="footer-cols">
         <div>
@@ -318,6 +322,7 @@
         <summary></summary>
         <ul></ul>
       </details>
+      <p class="card-sponsor" hidden></p>
       <div class="actions">
         <a class="button primary directions" target="_blank" rel="noopener">Directions</a>
         <button type="button" class="report-toggle">I'm here: report</button>
@@ -377,6 +382,7 @@
   <script src="js/data.js"></script>
   <script src="js/meters.js"></script>
   <script src="js/santa-barbara.js"></script>
+  <script src="js/sponsors.js"></script>
   <script src="js/demo.js"></script>
   <script src="js/app.js"></script>
 </body>

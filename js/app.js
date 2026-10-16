@@ -436,10 +436,49 @@ function render() {
       : "No beaches here match those filters.", "empty"));
   }
   drawMap(views);
+  sponsorSpot();
   $("shared-note").hidden = state.shared || demo;
   $("refresh").hidden = !state.beaches.length;
   headsUp();
   showFocus();
+}
+
+// The paid sponsor spot above the list, rotating hourly through paid-up sponsors. With none, it
+// offers the space to local businesses instead.
+function sponsorSpot() {
+  const box = $("sponsor");
+  const s = demo ? null : sponsorForSpot(SPONSORS, Date.now());
+  box.replaceChildren();
+  box.classList.toggle("house", !s);
+  if (s) {
+    box.append(el("span", "Sponsored", "sponsor-label"));
+    const a = el("a", s.name, "sponsor-name");
+    a.href = s.url;
+    a.target = "_blank";
+    a.rel = "sponsored noopener";
+    box.append(a);
+    if (s.tagline) box.append(el("span", s.tagline, "sponsor-tagline"));
+  } else {
+    box.append(el("span", "Ad space", "sponsor-label"));
+    const a = el("a", "Your business here: reach Isla Vista beachgoers", "sponsor-name");
+    a.href = "advertise.html";
+    box.append(a);
+  }
+}
+
+// A sponsor that paid for this beach, shown on its card and labeled as an ad.
+function cardSponsor(node, beach) {
+  const s = demo ? null : sponsorForBeach(SPONSORS, beach.id, Date.now());
+  const p = node.querySelector(".card-sponsor");
+  if (!s) return;
+  p.hidden = false;
+  p.append(el("span", "Sponsored", "sponsor-label"));
+  const a = el("a", s.name, "sponsor-name");
+  a.href = s.url;
+  a.target = "_blank";
+  a.rel = "sponsored noopener";
+  p.append(a);
+  if (s.tagline) p.append(el("span", s.tagline, "sponsor-tagline"));
 }
 
 // "Your beaches today": for each starred beach on the list, what beachgoers say now, or when
@@ -585,6 +624,7 @@ function card(v, reportOpen, when, alertOpen) {
   if (beach.curated) node.querySelector(".facts").after(lotList(beach));
 
   reportList(node, beach);
+  cardSponsor(node, beach);
 
   const dest = `${beach.lat},${beach.lon}`;
   node.querySelector(".directions").href =

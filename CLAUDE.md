@@ -38,8 +38,12 @@ approves each business before it goes live.
 ### Priorities, in order
 
 1. [x] Isla Vista spots as their own hand-checked beaches (Depressions, Pescadero, Devereux, Sands).
-2. [ ] Monthly sponsors: a labeled sponsor spot in the app, an owner-controlled sponsor list, and an
-   "Advertise here" page (payment via a Stripe Payment Link to start, no billing system).
+2. [x] Monthly sponsors: a labeled sponsor spot above the beach list (and on the card of a beach the
+   sponsor picks), an owner-controlled sponsor list, and `advertise.html`. **To add a sponsor:** add
+   an entry to `SPONSORS` in `js/sponsors.js` with `paidThrough` = the last paid day; it drops off
+   by itself after that. **Still needed from the owner:** the email businesses should write to, the
+   monthly price, and (optionally) a Stripe Payment Link; they go in `ADVERTISE` in the same file.
+   Until then the advertise page says "Sign-ups open soon".
 3. [ ] Local feed per beach: club posts and paid "Sponsored" business posts, approved by the owner.
 4. [ ] Club listings for UCSB clubs, with meetups tied to the beach they happen at.
 
@@ -97,7 +101,7 @@ See README.md for details and sources. In short:
 
 ## Working on the code
 
-- Run tests: `npm install` once, then `node --test tests/*.test.js` (103 passing as of Oct 16, 2026).
+- Run tests: `npm install` once, then `node --test tests/*.test.js` (108 passing as of Oct 16, 2026).
 - Look at the site: `python3 -m http.server 8766` and open http://localhost:8766 (`?demo` shows
   sample Los Angeles beaches with live reports).
 - Test the server features locally: `node tools/devserver.js "$PWD" 8790` serves the site, runs the

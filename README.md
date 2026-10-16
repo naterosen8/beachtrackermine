@@ -141,6 +141,11 @@ retired, and the waterfront lots never had live counts. Live parking here comes 
   weather and water testing as the page. Vercel Cron calls it daily at 15:00 UTC (`vercel.json`): 8 AM
   Pacific in summer, 7 AM in winter; subscribers whose local time isn't 6–11 AM then are skipped.
   Turning it on sends the first summary straight away; changing your starred beaches updates it.
+- **Sponsors** (`js/sponsors.js`, `advertise.html`): local businesses pay monthly for the sponsor
+  spot above the beach list, rotating hourly between sponsors, and can also appear on the card of a
+  beach they choose. Every ad is labeled "Sponsored", links use `rel="sponsored"`, and an ad stops
+  showing by itself after its paid-through date. With no sponsors, the spot offers the space and
+  links to the advertise page.
 - **Links**: `?q=Goleta` searches a place; `?at=34.41,-119.83&near=Goleta&beach=<id>` opens a spot
   with one beach highlighted (what the Share button sends). The site also remembers the last place
   you looked at.
@@ -182,6 +187,6 @@ node --test tests/*.test.js   # run the tests
 6. [x] Tides, water quality and surf conditions
 7. [x] Reporter points and a weekly leaderboard (no accounts needed)
 8. [x] Isla Vista spots: Depressions, Pescadero, Devereux, Sands
-9. [ ] Monthly business sponsors (labeled "Sponsored")
+9. [x] Monthly business sponsors (labeled "Sponsored")
 10. [ ] Local feed per beach: club posts and paid business posts
 11. [ ] UCSB club listings
