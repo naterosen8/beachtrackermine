@@ -62,9 +62,42 @@ test("every hand-checked beach lists its amenities with known keys", () => {
   const { SB_BEACHES } = require("../js/santa-barbara.js");
   const { AMENITIES } = require("../js/amenities.js");
   for (const b of SB_BEACHES) {
+    if (b.amenities === undefined) continue; // not hand-checked yet: the map's amenities are used
     assert.ok(Array.isArray(b.amenities), b.name);
     for (const a of b.amenities) assert.ok(AMENITIES[a.key], `${b.name}: ${a.key}`);
   }
   const east = SB_BEACHES.find((b) => b.name === "East Beach");
   assert.ok(east.amenities.some((a) => a.key === "showers"));
+});
+
+test("Isla Vista's own spots are listed under the names locals use", () => {
+  const curated = sbBeaches({ lat: 34.4105, lon: -119.8650 }, 3); // Del Playa Drive
+  const names = curated.map((b) => b.name);
+  for (const n of ["Depressions (Isla Vista Beach)", "Pescadero (Peskys)", "Devereux (Devs)", "Sands Beach"]) assert.ok(names.includes(n), n);
+  // Depressions keeps the old Isla Vista Beach id so its past reports still count.
+  assert.strictEqual(curated.find((b) => b.name.startsWith("Depressions")).id, "osm:way/446746847");
+  // The map's own entries for these spots don't show up twice.
+  const at = (name, id, lat, lon) => ({ name, id, lat, lon, distanceKm: 1 });
+  const merged = mergeWithCurated(curated, [
+    at("Depressions Beach", "osm:node/13850826844", 34.4074, -119.8502),
+    at("Isla Vista Beach", "osm:way/446746847", 34.4071, -119.8499),
+    at("Sands Beach", "osm:way/551452843", 34.409, -119.8808),
+  ]);
+  assert.strictEqual(merged.length, curated.length);
+});
+
+test("closures and rules carry a quoted source", () => {
+  const sands = SB_BEACHES.find((b) => b.name === "Sands Beach");
+  assert.ok(sands.noDogsOnBeach);
+  assert.match(sands.notices[0].text, /March 15/);
+  const devs = SB_BEACHES.find((b) => b.name === "Devereux (Devs)");
+  assert.strictEqual(devs.dogs, "leashed");
+  assert.deepStrictEqual(devs.waterSites, ["WP0000012"]);
+  assert.strictEqual(sbParkingSummary(devs), "UCSB lot on Seaway Dr · permit from the machine");
+  for (const b of SB_BEACHES) {
+    for (const n of b.notices || []) {
+      assert.ok(n.text && n.source, b.name);
+      assert.match(n.url, /^https:\/\//, b.name);
+    }
+  }
 });

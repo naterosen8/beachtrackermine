@@ -47,12 +47,33 @@ const TIDE_NOTES = {
 
 // waterSites: Santa Barbara County Environmental Health sampling sites for each beach (ids from
 // the county's ocean water monitoring map). West Beach has none of its own; the Mission Creek site
-// is right next to it at Stearns Wharf. Isla Vista and Rincon aren't sampled by the county.
+// is right next to it at Stearns Wharf. Devereux and Sands share the county's "Sands @ Coal Oil
+// Point" site, which sits between them. The rest of Isla Vista and Rincon aren't sampled by the county.
 
-// All ten are in the National Weather Service's "Santa Barbara County Southeastern Coast" land zone
+// All of them are in the National Weather Service's "Santa Barbara County Southeastern Coast" land zone
 // (checked October 2026 with api.weather.gov/zones?type=forecast&point=...), where NWS issues beach
 // hazards such as rip current statements and high surf advisories.
 const NWS_ZONE = "CAZ350";
+
+// notices: access closures and beach rules, quoted from their source and shown on the card.
+const NOTICES = {
+  pescadero: [{
+    text: "The Camino Pescadero beach stairs partially collapsed on Nov. 5, 2025 and are still closed. Use another Del Playa access.",
+    source: "Santa Barbara Independent, October 13, 2026",
+    url: "https://www.independent.com/2026/10/13/isla-vistas-coastal-access-debacle-on-the-eve-of-el-nino/",
+  }],
+  sands: [{
+    text: "Part of UCSB's Coal Oil Point Reserve: no dogs, ball games, kite flying or surf contests. Protected for nesting snowy plovers March 15 – September 15: stay near the water's edge and don't approach plover families.",
+    source: "Coal Oil Point Reserve, public access rules",
+    url: "https://copr.nrs.ucsb.edu/public/",
+  }],
+};
+
+// Devereux and Sands: the reserve's directions send visitors to the UCSB lot just before its locked
+// gate on Seaway Drive, with a day or hourly permit from the machine there. The lot inside the gate
+// is for reserve users only, and cars parked there for the beach are towed.
+const SEAWAY_LOT = { name: "UCSB lot on Seaway Drive, before the reserve gate", fee: "UCSB permit (day or hourly, from the machine)", note: "don't park inside the gate: towed" };
+const SEAWAY_SUMMARY = "UCSB lot on Seaway Dr · permit from the machine";
 
 // City waterfront lots: $3.50/hour, $20/day max, 8 a.m. to 10 p.m. (FY2026 fee schedule).
 const CITY_RATE = "$3.50/hr, $20/day max";
@@ -107,9 +128,27 @@ const SB_BEACHES = [
     id: "osm:way/44580911", name: "Goleta Beach", lat: 34.4166, lon: -119.8328, lifeguards: "seasonal", amenities: AMENITY_SETS.goleta, tideNotes: TIDE_NOTES.goleta, waterSites: ["WP0000037"], cams: [CAMS.campus],
     lots: [{ name: "Goleta Beach Park lot (county)", fee: "free", hours: COUNTY_HOURS }],
   },
+  // Isla Vista's own spots, west of campus along Del Playa Drive. Names and locations from
+  // OpenStreetMap (Depressions Beach, Devereux Beach, Sands Beach, Camino Pescadero Park), checked
+  // against UCSB A.S. Environmental Affairs' beach map (evpla.as.ucsb.edu/beach-maps). Depressions
+  // keeps the old "Isla Vista Beach" id so its past reports still count.
   {
-    id: "osm:way/446746847", name: "Isla Vista Beach", lat: 34.4071, lon: -119.8499, amenities: AMENITY_SETS.islaVista, tideNotes: TIDE_NOTES.islaVista, waterSites: [], cams: [CAMS.campus],
+    id: "osm:way/446746847", name: "Depressions (Isla Vista Beach)", lat: 34.4071, lon: -119.8499, amenities: AMENITY_SETS.islaVista, tideNotes: TIDE_NOTES.islaVista, waterSites: [], cams: [CAMS.campus],
+    aliases: ["Isla Vista Beach", "Depressions Beach", "Depressions"],
     lots: [{ name: "Street parking in Isla Vista (no beach lot)", fee: "free", street: true }],
+  },
+  {
+    id: "osm:way/50881614", name: "Pescadero (Peskys)", lat: 34.4088, lon: -119.8588, tideNotes: TIDE_NOTES.islaVista, waterSites: [], notices: NOTICES.pescadero,
+    aliases: ["Peskys", "Peskies", "Camino Pescadero Park Beach"],
+    lots: [{ name: "Street parking in Isla Vista (no beach lot)", fee: "free", street: true }],
+  },
+  {
+    id: "osm:way/551452844", name: "Devereux (Devs)", lat: 34.4081, lon: -119.8766, dogs: "leashed", waterSites: ["WP0000012"],
+    aliases: ["Devs", "Devereux Beach", "Devereux Point"], summary: SEAWAY_SUMMARY, lots: [SEAWAY_LOT],
+  },
+  {
+    id: "osm:way/551452843", name: "Sands Beach", lat: 34.409, lon: -119.8808, noDogsOnBeach: true, waterSites: ["WP0000012"], notices: NOTICES.sands,
+    aliases: ["Sands", "Coal Oil Point"], summary: SEAWAY_SUMMARY, lots: [SEAWAY_LOT],
   },
   {
     id: "osm:way/784388342", name: "Summerland Beach (Lookout Park)", lat: 34.4188, lon: -119.5961, amenities: AMENITY_SETS.summerland, waterSites: ["WP0000188"],

@@ -722,6 +722,23 @@ function cardAlerts(box, v) {
   const rain = state.weather ? recentRainMm(state.weather) : 0;
   if (rain >= RAIN_ADVISORY_MM) banner("Rain advisory: stay out of the ocean for 72 hours after significant rain.");
   tideNotes(box, v);
+  beachNotices(box, v);
+}
+
+// Access closures and beach rules (hand-checked beaches), quoted with their source.
+function beachNotices(box, v) {
+  for (const n of v.beach.notices || []) {
+    const wrap = el("div", null, "card-note");
+    const p = el("p", null, "card-note-head");
+    p.append(icon("alert"), document.createTextNode(n.text));
+    const a = el("a", n.source);
+    a.href = n.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    wrap.append(p, el("p", null));
+    wrap.lastChild.append(a);
+    box.append(wrap);
+  }
 }
 
 // Documented high-tide cut-offs, quoted with their source, next to the official tide times for the
@@ -1237,7 +1254,7 @@ function lotList(beach) {
     }
     list.append(li);
   }
-  details.append(list, el("p", "Rates and hours from the City of Santa Barbara, Santa Barbara County Parks and California State Parks. Check posted signs.", "fine"));
+  details.append(list, el("p", "Rates and hours from the City of Santa Barbara, Santa Barbara County Parks, California State Parks and UCSB's Coal Oil Point Reserve. Check posted signs.", "fine"));
   return details;
 }
 
